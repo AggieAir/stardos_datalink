@@ -13,18 +13,26 @@
 #include <ctime>
 #include <future>
 
+#include "rclcpp/rclcpp.hpp"
+#include "stardos_interfaces/msg/node_heartbeat.hpp"
 
 using namespace mavsdk;
 
-Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat) {
+Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat):
+        Node(name),
+        name{name}
+{
 	configure(sysid, compid, heartbeat);
 	connect();
 
 	drone = get_system(dc);
 	passthrough = std::make_shared<MavlinkPassthrough>(drone);
+
+        publisher = this->create_publisher<stardos_interfaces::msg::NodeHeartbeat>(
+                        name + "/telemetry",
+                        10);
 	  
 	start_downlink();
-        instantiate_mavlink();
 }
 
 Datalink::~Datalink() {
@@ -36,62 +44,49 @@ void Datalink::start_downlink() {
 }
 
 void Datalink::downlink_status() {
-//	std::string name = "Copilot";
-//	do{
-//
-//		const float data[58] =
-//		{
-//			0, //id not used
-//			0, //state not used
-//			(float)linuxRamUsage(),
-//			(float)storageUsage(),
-//			0,
-//			0,
-//			0,
-//			0,
-//			0,
-//			cpuLoad()
-//		};
-//	
-//	mavlink_message_t message;
-//
-//	mavlink_msg_debug_float_array_pack
-//	(
-//  		passthrough->get_our_sysid(), // SystemID
-//  		passthrough->get_our_compid(), //My comp ID
-//		&message, //Message reference
-//		1, //timeing is 1 sec
-//		name.c_str(),
-//		5,
-//		data 
-//	);
-//	
-//	passthrough->send_message(message);
-//
-//
-//	std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-//	std::cout << "CoPi status: cool. And sending" << std::endl;
-//	
-//	}while (true);
+	std::string name = "Copilot";
+	do{
+
+		const float data[] = {
+                        1.8,
+                        80.0,
+                        3.33333
+		};
+	
+                mavlink_message_t message;
+
+                mavlink_msg_debug_float_array_pack(
+                        passthrough->get_our_sysid(), // SystemID
+                        passthrough->get_our_compid(), //My comp ID
+                        &message, //Message reference
+                        1, //timeing is 1 sec
+                        name.c_str(),
+                        5,
+                        data 
+                );
+                
+                passthrough->send_message(message);
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                std::cout << "sent!";
+	
+	}while (true);
 }
 
-void Datalink::configure(uint8_t sysid, uint8_t compid, bool heartbeat)
-{
+void Datalink::configure(uint8_t sysid, uint8_t compid, bool heartbeat) {
 	dc.set_configuration(
 		Mavsdk::Configuration(sysid, compid, heartbeat)
         );
 }
 
-void Datalink::connect()
-{
+void Datalink::connect() {
 	std::string connection_url = "udp://0.0.0.0:14570";
 	mavsdk::ConnectionResult connection_result = 
 		dc.add_any_connection(connection_url);
 	std::cout << "Connection was a " << connection_result << std::endl;
 }
 
-std::shared_ptr<mavsdk::System> Datalink::get_system(Mavsdk& dc)
-{
+std::shared_ptr<mavsdk::System> Datalink::get_system(Mavsdk& dc) {
 	std::cout << "Waiting to discover system..." << std::endl;
 	auto prom = std::promise<std::shared_ptr<System>>{};
 	auto fut = prom.get_future();

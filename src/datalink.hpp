@@ -8,18 +8,23 @@
 
 #include <mutex>
 
-class Datalink
+#include "rclcpp/rclcpp.hpp"
+#include "stardos_interfaces/msg/node_heartbeat.hpp"
+
+class Datalink: rclcpp::Node
 {
 	public:
 	Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat);
 	~Datalink();
 
 	private:
+        std::string name;
   	mavsdk::Mavsdk dc;
 	std::shared_ptr<mavsdk::MavlinkPassthrough> passthrough;
 	std::shared_ptr<mavsdk::System> drone;
 	std::mutex data_lock;
 	std::thread downlink_thread;
+        rclcpp::Publisher<stardos_interfaces::msg::NodeHeartbeat>::SharedPtr publisher;
 	uint64_t uuid;
 
 	void async_thread();

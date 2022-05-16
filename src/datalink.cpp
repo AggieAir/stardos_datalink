@@ -1,4 +1,3 @@
-#include "datalink.hpp"
 #include <iostream>
 #include <chrono>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
@@ -15,6 +14,8 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
+
+#include "datalink.hpp"
 
 using namespace mavsdk;
 

@@ -11,7 +11,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 
-class Datalink: rclcpp::Node
+class Datalink: public rclcpp::Node
 {
 	public:
 	Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat);

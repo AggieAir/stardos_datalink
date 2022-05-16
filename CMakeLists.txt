@@ -16,9 +16,24 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(stardos_interfaces REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
+find_package(MAVSDK REQUIRED)
+
+add_executable(datalink_node src/main.cpp)
+
+ament_target_dependencies(datalink_node rclcpp stardos_interfaces MAVSDK)
+
+add_library(datalink src/datalink.cpp)
+ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK)
+
+include_directories(include/stardos_datalink)
+
+target_link_libraries(datalink_node
+	datalink
+	MAVSDK::mavsdk)
+
+install(TARGETS
+	datalink_node
+	DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

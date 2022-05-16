@@ -2,7 +2,7 @@
 #include <chrono>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 #include <mavsdk/plugins/log_files/log_files.h>
-#include <thread>
+// #include <thread>
 #include <string.h>
 #include <math.h>
 #include "sys/types.h"
@@ -37,15 +37,11 @@ Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbe
 }
 
 Datalink::~Datalink() {
+        
 	std::cout << "Destroying Datalink..." << std::endl;
 }
 
 void Datalink::start_downlink() {
-	downlink_thread = std::thread(&Datalink::downlink_status, this);
-}
-
-void Datalink::downlink_status() {
-	std::string name = "Copilot";
 	do{
 
 		const float data[] = {
@@ -69,7 +65,7 @@ void Datalink::downlink_status() {
                 passthrough->send_message(message);
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                std::cout << "sent!";
+                std::cout << "sent!\n";
 	
 	}while (true);
 }

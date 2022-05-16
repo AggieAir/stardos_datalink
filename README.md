@@ -1,6 +1,6 @@
 # Getting MAVLink to work
 
-*(accurate as of 13 May 2022)*
+*(accurate as of 16 May 2022)*
 
 If you want to get MAVLink set up on your computer, here are some pointers. I
 spent 2.5 hours getting `Mavlink.cpp` and `Mavlink.hpp` to build correctly so

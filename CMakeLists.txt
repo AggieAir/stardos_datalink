@@ -18,21 +18,28 @@ find_package(rclcpp REQUIRED)
 find_package(stardos_interfaces REQUIRED)
 find_package(MAVSDK REQUIRED)
 
-add_executable(datalink_node src/main.cpp)
+add_executable(datalink_client src/client.cpp)
+ament_target_dependencies(datalink_client rclcpp stardos_interfaces MAVSDK)
 
-ament_target_dependencies(datalink_node rclcpp stardos_interfaces MAVSDK)
+add_executable(datalink_server src/server.cpp)
+ament_target_dependencies(datalink_server rclcpp stardos_interfaces MAVSDK)
 
 add_library(datalink src/datalink.cpp)
 ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK)
 
 include_directories(include/stardos_datalink)
 
-target_link_libraries(datalink_node
+target_link_libraries(datalink_client
+	datalink
+	MAVSDK::mavsdk)
+
+target_link_libraries(datalink_server
 	datalink
 	MAVSDK::mavsdk)
 
 install(TARGETS
-	datalink_node
+	datalink_client
+	datalink_server
 	DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)

@@ -14,7 +14,7 @@
 class Datalink: public rclcpp::Node
 {
 	public:
-	Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat);
+	Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat, std::string connection_url);
 	~Datalink();
 
 	private:
@@ -29,7 +29,7 @@ class Datalink: public rclcpp::Node
 
 	void async_thread();
 	void configure(uint8_t sysid, uint8_t compid, bool heartbeat);
-	void connect();
+	void connect(std::string connection_url);
 	std::shared_ptr<mavsdk::System> get_system(mavsdk::Mavsdk& dc);
 	void start_downlink();
 	void downlink_status();

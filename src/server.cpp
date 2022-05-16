@@ -6,7 +6,7 @@
 
 int main(int argc, char *argv[]) {
         rclcpp::init(argc, argv);
-        Datalink datalink = Datalink("datalink", 1, 1, true);
+        Datalink datalink = Datalink("datalink_server", 190, 190, true, "udp://:14570");
         rclcpp::spin(std::shared_ptr<Datalink>(&datalink));
         rclcpp::shutdown();
         return 0;

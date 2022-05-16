@@ -19,12 +19,12 @@
 
 using namespace mavsdk;
 
-Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat):
+Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat, std::string connection_url):
         Node(name),
         name{name}
 {
 	configure(sysid, compid, heartbeat);
-	connect();
+	connect(connection_url);
 
 	drone = get_system(dc);
 	passthrough = std::make_shared<MavlinkPassthrough>(drone);
@@ -80,8 +80,7 @@ void Datalink::configure(uint8_t sysid, uint8_t compid, bool heartbeat) {
         );
 }
 
-void Datalink::connect() {
-	std::string connection_url = "udp://0.0.0.0:14570";
+void Datalink::connect(std::string connection_url) {
 	mavsdk::ConnectionResult connection_result = 
 		dc.add_any_connection(connection_url);
 	std::cout << "Connection was a " << connection_result << std::endl;

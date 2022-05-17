@@ -3,6 +3,7 @@
 
 #include <functional>
 #include <mavsdk/mavsdk.h>
+#include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/mavlink_types.h>
 #include <mavsdk/plugins/telemetry/telemetry.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 // #include <thread>
@@ -56,7 +57,9 @@ class Datalink: public rclcpp::Node
         // Runs every time we get a heartbeat
         void subsciption_callback(NodeHeartbeat::SharedPtr msg);
         // Process a NodeHeartbeat and turn it into a float array
+        void telemetry_received_callback(const mavlink_message_t msg);
         void pack_heartbeat_message(NodeHeartbeat::SharedPtr msg, float destination[2]);
+        void unpack_heartbeat_message(NodeHeartbeat *msg, float destination[2]);
 };
 
 #endif //DATALINK

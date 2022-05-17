@@ -1,6 +1,7 @@
 #include <functional>
 #include <iostream>
 #include <chrono>
+#include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/common/mavlink_msg_debug_float_array.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 #include <string.h>
 #include <math.h>
@@ -96,6 +97,16 @@ void Datalink::subsciption_callback(NodeHeartbeat::SharedPtr msg) {
         send(data);
 }
 
+void Datalink::telemetry_received_callback(mavlink_message_t msg) {
+        auto decoded = NodeHeartbeat();
+
+        mavlink_debug_float_array_t * floats = new mavlink_debug_float_array_t();
+        mavlink_msg_debug_float_array_decode(&msg, floats);
+
+        unpack_heartbeat_message(&decoded, floats->data);
+        this->publisher->publish(decoded);
+}
+
 void Datalink::pack_heartbeat_message(NodeHeartbeat::SharedPtr msg, float destination[2]) {
         uint16_t *truedest = (uint16_t*) destination;
         
@@ -103,4 +114,13 @@ void Datalink::pack_heartbeat_message(NodeHeartbeat::SharedPtr msg, float destin
         truedest[1] = msg->errors;
         truedest[2] = msg->requests;
         truedest[3] = msg->failures;
+}
+
+void Datalink::unpack_heartbeat_message(NodeHeartbeat *msg, float source[2]) {
+        uint16_t *truesource = (uint16_t*) source;
+        
+        msg->state = truesource[0];
+        msg->errors = truesource[1];
+        msg->requests = truesource[2];
+        msg->failures = truesource[3];
 }

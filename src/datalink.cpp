@@ -11,6 +11,7 @@
 #include <fstream>
 #include <ctime>
 #include <future>
+#include <string>
 
 #include "rclcpp/rclcpp.hpp"
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
@@ -18,56 +19,36 @@
 #include "datalink.hpp"
 
 using namespace mavsdk;
+using namespace std::literals::chrono_literals;
 
 Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat, std::string connection_url):
         Node(name),
-        name{name}
+        name{name},
+        sysid{sysid},
+        compid{compid},
+        heartbeat{heartbeat},
+        connection_url{connection_url}
 {
 	configure(sysid, compid, heartbeat);
 	connect(connection_url);
 
-	drone = get_system(dc);
-	passthrough = std::make_shared<MavlinkPassthrough>(drone);
+	dc.subscribe_on_new_system([this] {
+		auto maybe_drone = dc.systems().back();
+
+		if(maybe_drone->has_autopilot()) {
+                        RCLCPP_INFO(this->get_logger(), "Found autopilot");
+			dc.subscribe_on_new_system(nullptr);
+			drone = maybe_drone;
+		}
+	});
+
+	this->create_wall_timer(100ms, std::bind(&Datalink::timer_callback, this));
+
+        passthrough = std::make_shared<MavlinkPassthrough>(drone);
 
         publisher = this->create_publisher<stardos_interfaces::msg::NodeHeartbeat>(
                         name + "/telemetry",
                         10);
-	  
-	start_downlink();
-}
-
-Datalink::~Datalink() {
-        
-	std::cout << "Destroying Datalink..." << std::endl;
-}
-
-void Datalink::start_downlink() {
-	do{
-
-		const float data[] = {
-                        1.8,
-                        80.0,
-                        3.33333
-		};
-	
-                mavlink_message_t message;
-
-                mavlink_msg_debug_float_array_pack(
-                        passthrough->get_our_sysid(), // SystemID
-                        passthrough->get_our_compid(), //My comp ID
-                        &message, //Message reference
-                        1, //timeing is 1 sec
-                        name.c_str(),
-                        5,
-                        data 
-                );
-                
-                passthrough->send_message(message);
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                std::cout << "sent!\n";
-	
-	}while (true);
 }
 
 void Datalink::configure(uint8_t sysid, uint8_t compid, bool heartbeat) {
@@ -79,31 +60,46 @@ void Datalink::configure(uint8_t sysid, uint8_t compid, bool heartbeat) {
 void Datalink::connect(std::string connection_url) {
 	mavsdk::ConnectionResult connection_result = 
 		dc.add_any_connection(connection_url);
-	std::cout << "Connection was a " << connection_result << std::endl;
+	RCLCPP_INFO(this->get_logger(), "Connection was a %s\n", connection_result);
 }
 
-std::shared_ptr<mavsdk::System> Datalink::get_system(Mavsdk& dc) {
-	std::cout << "Waiting to discover system..." << std::endl;
-	auto prom = std::promise<std::shared_ptr<System>>{};
-	auto fut = prom.get_future();
+void Datalink::send() {
+        const float data[] = {
+                1.8,
+                80.0,
+                3.33333
+        };
 
-	dc.subscribe_on_new_system([&dc, &prom]()
-	{
-		auto maybe_drone = dc.systems().back();
+        mavlink_message_t message;
 
-		if(maybe_drone->has_autopilot())
-		{
-			std::cout << "Found Autopilot" << std::endl;
-			dc.subscribe_on_new_system(nullptr);
-			prom.set_value(maybe_drone);
-		}
-	});
+        mavlink_msg_debug_float_array_pack(
+                passthrough->get_our_sysid(), // SystemID
+                passthrough->get_our_compid(), //My comp ID
+                &message, //Message reference
+                1, //timeing is 1 sec
+                name.c_str(),
+                5,
+                data 
+        );
+        
+        passthrough->send_message(message);
 
-	if(fut.wait_for(std::chrono::seconds(300)) == std::future_status::timeout)
-	{
-		std::cout <<"No Autopilot found" << std::endl;
-		return{};
-	}
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        std::cout << "sent!\n";
+}
 
-	return fut.get();
+void Datalink::check_systems() {
+        auto maybe_drone = dc.systems().back();
+
+        if(maybe_drone->has_autopilot()) {
+                RCLCPP_INFO(this->get_logger(), "Found autopilot");
+                dc.subscribe_on_new_system(nullptr);
+                drone = maybe_drone;
+        }
+}
+
+void Datalink::timer_callback() {
+        if (drone == nullptr) return;
+
+        send();
 }

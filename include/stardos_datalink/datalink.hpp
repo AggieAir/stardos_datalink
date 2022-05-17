@@ -55,7 +55,7 @@ class Datalink: public rclcpp::Node
         // Runs every 100ms
         void timer_callback();
         // Runs every time we get a heartbeat
-        void subsciption_callback(NodeHeartbeat::SharedPtr msg);
+        void subscription_callback(NodeHeartbeat::SharedPtr msg);
         // Process a NodeHeartbeat and turn it into a float array
         void telemetry_received_callback(mavlink_message_t msg);
         void pack_heartbeat_message(NodeHeartbeat::SharedPtr msg, float destination[2]);

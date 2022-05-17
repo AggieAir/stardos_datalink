@@ -28,11 +28,13 @@ Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbe
 	configure(sysid, compid, heartbeat);
 	connect();
 
-        RCLCPP_DEBUG(this->get_logger(), "Subscribing to system feed");
+        std::cout << dc.systems().size() << " systems connected\n";
+
+        RCLCPP_INFO(this->get_logger(), "Subscribing to system feed");
 
 	dc.subscribe_on_new_system(std::bind(&Datalink::check_systems, this));
 
-        RCLCPP_DEBUG(this->get_logger(), "Creating telemetry publisher");
+        RCLCPP_INFO(this->get_logger(), "Creating telemetry publisher");
 
         publisher = this->create_publisher<NodeHeartbeat>(
                         name + "/telemetry",
@@ -41,11 +43,11 @@ Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbe
         subscription = this->create_subscription<NodeHeartbeat>(
                         "/heartbeat",
                         10,
-                        std::bind(&Datalink::subsciption_callback, this, _1));
+                        std::bind(&Datalink::subscription_callback, this, _1));
 
-        RCLCPP_DEBUG(this->get_logger(), "Creating MAVLink Passthrough");
+        RCLCPP_INFO(this->get_logger(), "Creating MAVLink Passthrough");
 
-        RCLCPP_DEBUG(this->get_logger(), "Binding timer callback");
+        RCLCPP_INFO(this->get_logger(), "Binding timer callback");
 
 	get_system_timer = this->create_wall_timer(100ms, std::bind(&Datalink::timer_callback, this));
 }
@@ -73,9 +75,11 @@ void Datalink::send(float data[]) {
                 data 
         );
         
-        passthrough->send_message(message);
+        MavlinkPassthrough::Result result = passthrough->send_message(message);
 
-        std::cout << "sent!\n";
+        if (result != MavlinkPassthrough::Result::Success) {
+                std::cout << "command send failed: " << result << "\n";
+        }
 }
 
 void Datalink::check_systems() {
@@ -92,16 +96,21 @@ void Datalink::check_systems() {
 }
 
 void Datalink::timer_callback() {
-        if (drone == nullptr) return;
+        if (dc.systems().size() != 0) {
+                check_systems();
+                get_system_timer->cancel();
+        }
 }
 
-void Datalink::subsciption_callback(NodeHeartbeat::SharedPtr msg) {
+void Datalink::subscription_callback(NodeHeartbeat::SharedPtr msg) {
+        if (passthrough == nullptr) return;
         float data[2];
         pack_heartbeat_message(msg, data);
         send(data);
 }
 
 void Datalink::telemetry_received_callback(mavlink_message_t msg) {
+        RCLCPP_INFO(this->get_logger(), "sending packet");
         auto decoded = NodeHeartbeat();
 
         mavlink_debug_float_array_t * floats = new mavlink_debug_float_array_t();

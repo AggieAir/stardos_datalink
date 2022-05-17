@@ -1,3 +1,4 @@
+#include <functional>
 #include <iostream>
 #include <chrono>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
@@ -12,6 +13,8 @@
 
 using namespace mavsdk;
 using namespace std::literals::chrono_literals;
+using namespace std::placeholders;
+using stardos_interfaces::msg::NodeHeartbeat;
 
 Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat, std::string connection_url):
         Node(name),
@@ -30,9 +33,14 @@ Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbe
 
         RCLCPP_DEBUG(this->get_logger(), "Creating telemetry publisher");
 
-        publisher = this->create_publisher<stardos_interfaces::msg::NodeHeartbeat>(
+        publisher = this->create_publisher<NodeHeartbeat>(
                         name + "/telemetry",
                         10);
+
+        subscription = this->create_subscription<NodeHeartbeat>(
+                        "/heartbeat",
+                        10,
+                        std::bind(&Datalink::subsciption_callback, this, _1));
 
         RCLCPP_DEBUG(this->get_logger(), "Creating MAVLink Passthrough");
 
@@ -48,18 +56,10 @@ void Datalink::configure(uint8_t sysid, uint8_t compid, bool heartbeat) {
 }
 
 void Datalink::connect() {
-	ConnectionResult connection_result = 
-		dc.add_any_connection(connection_url);
-	RCLCPP_INFO(this->get_logger(), "Connection was a %s\n", connection_result);
+        dc.add_any_connection(connection_url);
 }
 
-void Datalink::send() {
-        const float data[] = {
-                1.8,
-                80.0,
-                3.33333
-        };
-
+void Datalink::send(float data[]) {
         mavlink_message_t message;
 
         mavlink_msg_debug_float_array_pack(
@@ -89,6 +89,19 @@ void Datalink::check_systems() {
 void Datalink::timer_callback() {
         RCLCPP_INFO(this->get_logger(), "meme");
         if (drone == nullptr) return;
+}
 
-        send();
+void Datalink::subsciption_callback(NodeHeartbeat::SharedPtr msg) {
+        float data[2];
+        pack_heartbeat_message(msg, data);
+        send(data);
+}
+
+void Datalink::pack_heartbeat_message(NodeHeartbeat::SharedPtr msg, float destination[2]) {
+        uint16_t *truedest = (uint16_t*) destination;
+        
+        truedest[0] = msg->state;
+        truedest[1] = msg->errors;
+        truedest[2] = msg->requests;
+        truedest[3] = msg->failures;
 }

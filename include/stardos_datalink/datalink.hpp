@@ -13,6 +13,8 @@
 #include "rclcpp/timer.hpp"
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 
+using stardos_interfaces::msg::NodeHeartbeat;
+
 class Datalink: public rclcpp::Node
 {
 	public:
@@ -37,18 +39,23 @@ class Datalink: public rclcpp::Node
         // Reference to other MAVLink system
 	std::shared_ptr<mavsdk::System> drone;
         // Publisher to report heartbeat data
-        rclcpp::Publisher<stardos_interfaces::msg::NodeHeartbeat>::SharedPtr publisher;
+        rclcpp::Publisher<NodeHeartbeat>::SharedPtr publisher;
+        rclcpp::Subscription<NodeHeartbeat>::SharedPtr subscription;
 
         // Wrapper around Mavsdk::set_configuration
 	void configure(uint8_t sysid, uint8_t compid, bool heartbeat);
         // Bind to the connection_url
 	void connect();
         // Send a telemetry packet
-	void send();
+	void send(float data[]);
         // Check to see if there is another system; connect if so
         void check_systems();
         // Runs every 100ms
         void timer_callback();
+        // Runs every time we get a heartbeat
+        void subsciption_callback(NodeHeartbeat::SharedPtr msg);
+        // Process a NodeHeartbeat and turn it into a float array
+        void pack_heartbeat_message(NodeHeartbeat::SharedPtr msg, float destination[2]);
 };
 
 #endif //DATALINK

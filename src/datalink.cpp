@@ -32,23 +32,21 @@ Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbe
 	configure(sysid, compid, heartbeat);
 	connect(connection_url);
 
-	dc.subscribe_on_new_system([this] {
-		auto maybe_drone = dc.systems().back();
+        RCLCPP_INFO(this->get_logger(), "Subscribing to system feed");
 
-		if(maybe_drone->has_autopilot()) {
-                        RCLCPP_INFO(this->get_logger(), "Found autopilot");
-			dc.subscribe_on_new_system(nullptr);
-			drone = maybe_drone;
-		}
-	});
+	dc.subscribe_on_new_system(std::bind(&Datalink::check_systems, this));
 
-	this->create_wall_timer(100ms, std::bind(&Datalink::timer_callback, this));
-
-        passthrough = std::make_shared<MavlinkPassthrough>(drone);
+        RCLCPP_INFO(this->get_logger(), "Creating telemetry publisher");
 
         publisher = this->create_publisher<stardos_interfaces::msg::NodeHeartbeat>(
                         name + "/telemetry",
                         10);
+
+        RCLCPP_INFO(this->get_logger(), "Creating MAVLink Passthrough");
+
+        RCLCPP_INFO(this->get_logger(), "Binding timer callback");
+
+	this->create_wall_timer(100ms, std::bind(&Datalink::timer_callback, this));
 }
 
 void Datalink::configure(uint8_t sysid, uint8_t compid, bool heartbeat) {
@@ -58,7 +56,7 @@ void Datalink::configure(uint8_t sysid, uint8_t compid, bool heartbeat) {
 }
 
 void Datalink::connect(std::string connection_url) {
-	mavsdk::ConnectionResult connection_result = 
+	ConnectionResult connection_result = 
 		dc.add_any_connection(connection_url);
 	RCLCPP_INFO(this->get_logger(), "Connection was a %s\n", connection_result);
 }
@@ -84,7 +82,6 @@ void Datalink::send() {
         
         passthrough->send_message(message);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         std::cout << "sent!\n";
 }
 
@@ -95,10 +92,12 @@ void Datalink::check_systems() {
                 RCLCPP_INFO(this->get_logger(), "Found autopilot");
                 dc.subscribe_on_new_system(nullptr);
                 drone = maybe_drone;
+                passthrough = std::make_shared<MavlinkPassthrough>(drone);
         }
 }
 
 void Datalink::timer_callback() {
+        RCLCPP_INFO(this->get_logger(), "meme");
         if (drone == nullptr) return;
 
         send();

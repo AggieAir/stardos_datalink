@@ -34,6 +34,7 @@ class Datalink: public rclcpp::Node
         std::string connection_url;
         // Instance of MAVSDK -- this models the connection
   	mavsdk::Mavsdk dc;
+        rclcpp::TimerBase::SharedPtr get_system_timer;
         // This allows us to send our own messages here
 	std::shared_ptr<mavsdk::MavlinkPassthrough> passthrough;
         // Reference to other MAVLink system

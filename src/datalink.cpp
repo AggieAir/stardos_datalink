@@ -46,7 +46,7 @@ Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbe
 
         RCLCPP_DEBUG(this->get_logger(), "Binding timer callback");
 
-	this->create_wall_timer(100ms, std::bind(&Datalink::timer_callback, this));
+	get_system_timer = this->create_wall_timer(100ms, std::bind(&Datalink::timer_callback, this));
 }
 
 void Datalink::configure(uint8_t sysid, uint8_t compid, bool heartbeat) {
@@ -87,7 +87,6 @@ void Datalink::check_systems() {
 }
 
 void Datalink::timer_callback() {
-        RCLCPP_INFO(this->get_logger(), "meme");
         if (drone == nullptr) return;
 }
 

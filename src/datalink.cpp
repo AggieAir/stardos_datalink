@@ -1,8 +1,8 @@
 #include <functional>
 #include <iostream>
 #include <chrono>
-#include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/common/mavlink_msg_debug_float_array.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
+#include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/common/mavlink_msg_debug_float_array.h>
 #include <string.h>
 #include <math.h>
 #include <string>
@@ -85,6 +85,10 @@ void Datalink::check_systems() {
         dc.subscribe_on_new_system(nullptr);
         drone = maybe_drone;
         passthrough = std::make_shared<MavlinkPassthrough>(drone);
+        passthrough->subscribe_message_async(
+                        MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY, [this] (mavlink_message_t msg) {
+                                this->telemetry_received_callback(msg);
+                        });
 }
 
 void Datalink::timer_callback() {

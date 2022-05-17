@@ -19,22 +19,35 @@ class Datalink: public rclcpp::Node
 	Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat, std::string connection_url);
 
 	private:
+        // ROS node name
         std::string name;
+        // MAVLink system ID
         uint8_t sysid;
+        // MAVLink component ID
         uint8_t compid;
+        // Whether or not should send heartbeats
         bool heartbeat;
+        // URL to connect to
+        // can be UDP, TCP, or serial
         std::string connection_url;
+        // Instance of MAVSDK -- this models the connection
   	mavsdk::Mavsdk dc;
+        // This allows us to send our own messages here
 	std::shared_ptr<mavsdk::MavlinkPassthrough> passthrough;
+        // Reference to other MAVLink system
 	std::shared_ptr<mavsdk::System> drone;
-	std::mutex data_lock;
+        // Publisher to report heartbeat data
         rclcpp::Publisher<stardos_interfaces::msg::NodeHeartbeat>::SharedPtr publisher;
-	uint64_t uuid;
 
+        // Wrapper around Mavsdk::set_configuration
 	void configure(uint8_t sysid, uint8_t compid, bool heartbeat);
-	void connect(std::string connection_url);
+        // Bind to the connection_url
+	void connect();
+        // Send a telemetry packet
 	void send();
+        // Check to see if there is another system; connect if so
         void check_systems();
+        // Runs every 100ms
         void timer_callback();
 };
 

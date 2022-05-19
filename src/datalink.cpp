@@ -38,10 +38,6 @@ Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbe
 	configure(sysid, compid, heartbeat);
 	connect();
 
-        RCLCPP_INFO(this->get_logger(), "Subscribing to system feed");
-
-	dc.subscribe_on_new_system(std::bind(&Datalink::check_systems, this));
-
         RCLCPP_INFO(this->get_logger(), "Creating telemetry publisher");
 
         control_subscription = this->create_subscription<Control>(
@@ -124,7 +120,7 @@ void Datalink::control_callback(Control::SharedPtr msg) {
         auto pub = root["pub"];
         int id = 0;
         for (auto v = pub.begin(); v != pub.end(); v++) {
-                std::string topic = v->asString() + "/heartbeat";
+                std::string topic = v->asString();
 
                 heartbeat_subscriptions.push_back(
                     this->create_subscription<NodeHeartbeat>(
@@ -136,7 +132,7 @@ void Datalink::control_callback(Control::SharedPtr msg) {
         auto sub = root["sub"];
         id = 0;
         for (auto v = sub.begin(); v != sub.end(); v++) {
-                std::string topic = v->asString() + "/heartbeat";
+                std::string topic = v->asString();
                 heartbeat_publishers.push_back(
                         this->create_publisher<NodeHeartbeat>(
                                 topic,

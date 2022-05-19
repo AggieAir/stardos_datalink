@@ -24,6 +24,9 @@ ament_target_dependencies(datalink_client rclcpp stardos_interfaces MAVSDK)
 add_executable(datalink_server src/server.cpp)
 ament_target_dependencies(datalink_server rclcpp stardos_interfaces MAVSDK)
 
+add_library(floattelem src/floattelem.cpp)
+ament_target_dependencies(floattelem stardos_interfaces)
+
 add_library(datalink src/datalink.cpp)
 ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK)
 
@@ -31,10 +34,12 @@ include_directories(include/stardos_datalink)
 
 target_link_libraries(datalink_client
 	datalink
+        floattelem
 	MAVSDK::mavsdk)
 
 target_link_libraries(datalink_server
 	datalink
+        floattelem
 	MAVSDK::mavsdk)
 
 install(TARGETS

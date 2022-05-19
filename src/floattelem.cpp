@@ -9,11 +9,12 @@ namespace floattelem {
 
         Header Message::get_header() {
                 uint8_t *data8 = data_u8();
-                return Header {
-                        .msg_type = data8[0],
-                        .msg_length = data8[1],
-                        .topic_id = data8[2],
-                };
+                Header head;
+                head.msg_type = data8[0];
+                head.msg_length = data8[1];
+                head.topic_id = data8[2];
+
+                return head;
         }
 
         Message Message::pack_heartbeat_message(NodeHeartbeat::SharedPtr msg, uint8_t topic_id) {
@@ -26,7 +27,7 @@ namespace floattelem {
                  * 80:95  10-13      5  failures
                  */
 
-                Message ret = Message(MSG_ID_HEARTBEAT, MSG_LENGTH_HEARTBEAT, 0);
+                Message ret = Message(MSG_ID_HEARTBEAT, MSG_LENGTH_HEARTBEAT, topic_id);
 
                 uint16_t *data16 = ret.data_u16();
 

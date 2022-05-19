@@ -23,6 +23,7 @@ using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::Control;
 
 typedef floattelem::Message TelemMessage;
+typedef floattelem::Header TelemHeader;
 
 Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat, std::string connection_url):
         Node(name),
@@ -32,7 +33,7 @@ Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbe
         heartbeat{heartbeat},
         connection_url{connection_url},
         heartbeat_subscriptions{std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr>()},
-        heartbeat_publishers{std::vector<rclcpp::Publisher<NodeHeartbeat>>()}
+        heartbeat_publishers{std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr>()}
 {
 	configure(sysid, compid, heartbeat);
 	connect();
@@ -42,10 +43,6 @@ Datalink::Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbe
 	dc.subscribe_on_new_system(std::bind(&Datalink::check_systems, this));
 
         RCLCPP_INFO(this->get_logger(), "Creating telemetry publisher");
-
-        // publisher = this->create_publisher<NodeHeartbeat>(
-        //                 name + "/telemetry",
-        //                 10);
 
         control_subscription = this->create_subscription<Control>(
                         name + "/control",
@@ -73,10 +70,6 @@ void Datalink::send(TelemMessage msg) {
         mavlink_message_t message;
 
         uint8_t *data8 = (uint8_t*) msg.get_data();
-
-        for (int i = 0; i < 16; i++) {
-                std::cout << (int) data8[i] << "/";
-        }
 
         mavlink_msg_debug_float_array_pack(
                 passthrough->get_our_sysid(), // SystemID
@@ -117,7 +110,7 @@ void Datalink::timer_callback() {
 
 void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
         if (passthrough == nullptr) return;
-        send(TelemMessage::pack_heartbeat_message(msg, 0));
+        send(TelemMessage::pack_heartbeat_message(msg, id));
 }
 
 void Datalink::control_callback(Control::SharedPtr msg) {
@@ -128,8 +121,9 @@ void Datalink::control_callback(Control::SharedPtr msg) {
 
         heartbeat_subscriptions.clear();
 
+        auto pub = root["pub"];
         int id = 0;
-        for (auto v = root.begin(); v != root.end(); v++) {
+        for (auto v = pub.begin(); v != pub.end(); v++) {
                 std::string topic = v->asString() + "/heartbeat";
 
                 heartbeat_subscriptions.push_back(
@@ -137,14 +131,23 @@ void Datalink::control_callback(Control::SharedPtr msg) {
                         topic, 10, [this, id] (NodeHeartbeat::SharedPtr msg) {
                           heartbeat_callback(id, msg);
                         }));
-
-                //        control_subscription =
-                //        this->create_subscription<Control>(
-                //                        name + "/control",
-                //                        10,
-                //                        std::bind(&Datalink::control_callback,
-                //                        this, _1));
         }
+
+        auto sub = root["sub"];
+        id = 0;
+        for (auto v = sub.begin(); v != sub.end(); v++) {
+                std::string topic = v->asString() + "/heartbeat";
+                heartbeat_publishers.push_back(
+                        this->create_publisher<NodeHeartbeat>(
+                                topic,
+                                10));
+        }
+
+
+        // publisher = this->create_publisher<NodeHeartbeat>(
+        //                 name + "/telemetry",
+        //                 10);
+
 }
 
 void Datalink::telemetry_received_callback(mavlink_message_t msg) {
@@ -153,6 +156,9 @@ void Datalink::telemetry_received_callback(mavlink_message_t msg) {
         mavlink_debug_float_array_t * floats = new mavlink_debug_float_array_t();
         mavlink_msg_debug_float_array_decode(&msg, floats);
 
-        NodeHeartbeat decoded = TelemMessage(floats->data).unpack_heartbeat_message();
-        //this->heartbeat_publishers[0].publish(decoded);
+        TelemMessage message = TelemMessage(floats->data);
+        NodeHeartbeat ros_message = message.unpack_heartbeat_message();
+        TelemHeader head = message.get_header();
+
+        this->heartbeat_publishers[head.topic_id]->publish(ros_message);
 }

@@ -2,6 +2,7 @@
 #define DATALINK_HPP
 
 #include <functional>
+#include <map>
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/mavlink_types.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
@@ -44,7 +45,7 @@ private:
         rclcpp::Subscription<Control>::SharedPtr control_subscription;
 
         std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr> heartbeat_subscriptions;
-        std::vector<rclcpp::Publisher<NodeHeartbeat>> heartbeat_publishers;
+        std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr> heartbeat_publishers;
 
         // Wrapper around Mavsdk::set_configuration
 	void configure(uint8_t sysid, uint8_t compid, bool heartbeat);

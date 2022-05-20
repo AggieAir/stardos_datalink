@@ -18,11 +18,11 @@ find_package(rclcpp REQUIRED)
 find_package(stardos_interfaces REQUIRED)
 find_package(MAVSDK REQUIRED)
 
-add_executable(datalink_client src/client.cpp)
-ament_target_dependencies(datalink_client rclcpp stardos_interfaces MAVSDK)
+add_executable(datalink_ground src/ground.cpp)
+ament_target_dependencies(datalink_ground rclcpp stardos_interfaces MAVSDK)
 
-add_executable(datalink_server src/server.cpp)
-ament_target_dependencies(datalink_server rclcpp stardos_interfaces MAVSDK)
+add_executable(datalink_copilot src/copilot.cpp)
+ament_target_dependencies(datalink_copilot rclcpp stardos_interfaces MAVSDK)
 
 add_library(floattelem src/floattelem.cpp)
 ament_target_dependencies(floattelem stardos_interfaces)
@@ -32,19 +32,19 @@ ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK)
 
 include_directories(include/stardos_datalink)
 
-target_link_libraries(datalink_client
+target_link_libraries(datalink_ground
 	datalink
         floattelem
 	MAVSDK::mavsdk)
 
-target_link_libraries(datalink_server
+target_link_libraries(datalink_copilot
 	datalink
         floattelem
 	MAVSDK::mavsdk)
 
 install(TARGETS
-	datalink_client
-	datalink_server
+	datalink_ground
+	datalink_copilot
 	DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)

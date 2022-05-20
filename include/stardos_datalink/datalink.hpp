@@ -20,7 +20,15 @@ using stardos_interfaces::msg::Control;
 class Datalink: public rclcpp::Node
 {
 public:
-	Datalink(std::string name, uint8_t sysid, uint8_t compid, bool heartbeat, std::string connection_url);
+	Datalink(
+                std::string name,
+                uint8_t sysid,
+                uint8_t compid,
+                bool heartbeat,
+                std::string connection_url,
+                uint8_t targetsysid,
+                uint8_t targetcompid
+        );
 
 private:
         // ROS node name
@@ -29,6 +37,10 @@ private:
         uint8_t sysid;
         // MAVLink component ID
         uint8_t compid;
+        // MAVLink system ID to transmit datalink to
+        uint8_t targetsysid;
+        // MAVLink component ID to transmit datalink to
+        uint8_t targetcompid;
         // Whether or not should send heartbeats
         bool heartbeat;
         // URL to connect to

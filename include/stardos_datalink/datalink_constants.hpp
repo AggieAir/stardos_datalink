@@ -1,0 +1,11 @@
+#ifndef DATALINK_CONSTANTS_HPP
+#define DATALINK_CONSTANTS_HPP
+
+#define SYS_ID_PAYLOAD     1
+#define COMP_ID_PAYLOAD  243
+#define COMP_ID_COPILOT  220
+
+#define SYS_ID_GCS       190
+#define COMP_ID_GCS      190
+
+#endif // DATALINK_CONSTANTS_HPP

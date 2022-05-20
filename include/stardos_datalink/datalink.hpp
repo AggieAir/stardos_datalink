@@ -35,6 +35,7 @@ private:
         std::string name;
         // Instance of MAVSDK -- this models the connection
   	mavsdk::Mavsdk dc;
+        // Runs every second; looks for systems
         rclcpp::TimerBase::SharedPtr get_system_timer;
         // This allows us to send our own messages here
 	std::shared_ptr<mavsdk::MavlinkPassthrough> passthrough;
@@ -43,7 +44,9 @@ private:
         // Publisher to report heartbeat data
         rclcpp::Subscription<Control>::SharedPtr control_subscription;
 
+        // Which topics to listen to in order to forward over mavlink
         std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr> heartbeat_subscriptions;
+        // Which topics to publish onto when we get a mavlink message
         std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr> heartbeat_publishers;
 
         // Wrapper around Mavsdk::set_configuration
@@ -58,6 +61,9 @@ private:
         void timer_callback();
         // Runs every time we get a heartbeat
         void heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg);
+        // What to call when we see a control message
+        // This is a STARDOS concept; in this context the control node tells us
+        // which topics to publish and subscribe on. It is a JSON string.
         void control_callback(Control::SharedPtr msg);
         // Process a NodeHeartbeat and turn it into a float array
         void telemetry_received_callback(mavlink_message_t msg);

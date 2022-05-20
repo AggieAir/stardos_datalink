@@ -70,15 +70,15 @@ namespace floattelem {
         Message::Message(uint8_t msg_type, uint8_t msg_length, uint8_t topic_id) {
                 // msg_length is in bytes. get number of single-precision floats to hold it.
                 
-                // first, divide by size of float
-                int number_of_floats = msg_length / sizeof(float);
-                // that truncates though. we may have up to three bytes hanging off.
-                // add them back if so.
-                if (msg_length % 4 != 0) {
-                        number_of_floats++;
-                }
+                // // first, divide by size of float
+                // int number_of_floats = msg_length / sizeof(float);
+                // // that truncates though. we may have up to three bytes hanging off.
+                // // add them back if so.
+                // if (msg_length % 4 != 0) {
+                //         number_of_floats++;
+                // }
 
-                data = new float[number_of_floats];
+                data = new float[58];
 
                 populate_header(msg_type, msg_length, topic_id);
         }

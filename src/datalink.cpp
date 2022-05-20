@@ -180,7 +180,7 @@ void Datalink::telemetry_received_callback(mavlink_message_t msg) {
         NodeHeartbeat ros_message = message.unpack_heartbeat_message();
         TelemHeader head = message.get_header();
 
-        if (heartbeat_publishers.size() > head.topic_id) {
+        if (head.topic_id >= heartbeat_publishers.size()) {
                 RCLCPP_ERROR(this->get_logger(), "Publisher with ID=%d out of range", head.topic_id);
         } else {
                 this->heartbeat_publishers[head.topic_id]->publish(ros_message);

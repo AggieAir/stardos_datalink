@@ -33,19 +33,6 @@ public:
 private:
         // ROS node name
         std::string name;
-        // MAVLink system ID
-        uint8_t sysid;
-        // MAVLink component ID
-        uint8_t compid;
-        // MAVLink system ID to transmit datalink to
-        uint8_t targetsysid;
-        // MAVLink component ID to transmit datalink to
-        uint8_t targetcompid;
-        // Whether or not should send heartbeats
-        bool heartbeat;
-        // URL to connect to
-        // can be UDP, TCP, or serial
-        std::string connection_url;
         // Instance of MAVSDK -- this models the connection
   	mavsdk::Mavsdk dc;
         rclcpp::TimerBase::SharedPtr get_system_timer;
@@ -60,7 +47,7 @@ private:
         std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr> heartbeat_publishers;
 
         // Wrapper around Mavsdk::set_configuration
-	void configure(uint8_t sysid, uint8_t compid, bool heartbeat);
+	void configure();
         // Bind to the connection_url
 	void connect();
         // Send a telemetry packet

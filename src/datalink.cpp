@@ -35,16 +35,25 @@ Datalink::Datalink(
         uint8_t targetcompid
 ) : Node(name),
         name{name},
-        sysid{sysid},
-        compid{compid},
-        targetsysid{targetsysid},
-        targetcompid{targetcompid},
-        heartbeat{heartbeat},
-        connection_url{connection_url},
         heartbeat_subscriptions{std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr>()},
         heartbeat_publishers{std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr>()}
 {
-	configure(sysid, compid, heartbeat);
+        // MAVLink stuff, in parameters
+        // this node's system id and component id
+        this->declare_parameter<int>("sysid", sysid);
+        this->declare_parameter<int>("compid", compid);
+
+        // the target node's system id and component id
+        this->declare_parameter<int>("targetsysid", targetsysid);
+        this->declare_parameter<int>("targetcompid", targetcompid);
+        
+        // whether to send heartbeats
+        this->declare_parameter<bool>("heartbeat", heartbeat);
+
+        // where to forge a connection to
+        this->declare_parameter<std::string>("connection_url", connection_url);
+
+	configure();
 	connect();
 
         RCLCPP_INFO(this->get_logger(), "Creating telemetry publisher");
@@ -62,14 +71,18 @@ Datalink::Datalink(
 	get_system_timer = this->create_wall_timer(1000ms, std::bind(&Datalink::check_systems, this));
 }
 
-void Datalink::configure(uint8_t sysid, uint8_t compid, bool heartbeat) {
+void Datalink::configure() {
 	dc.set_configuration(
-		Mavsdk::Configuration(sysid, compid, heartbeat)
+		Mavsdk::Configuration(
+                        this->get_parameter("sysid").as_int(),
+                        this->get_parameter("compid").as_int(),
+                        this->get_parameter("heartbeat").as_bool()
+                )
         );
 }
 
 void Datalink::connect() {
-        dc.add_any_connection(connection_url);
+        dc.add_any_connection(this->get_parameter("connection_url").as_string());
 }
 
 void Datalink::send(TelemMessage msg) {
@@ -94,8 +107,13 @@ void Datalink::send(TelemMessage msg) {
 
 void Datalink::check_systems() {
         for (auto s : dc.systems()) {
-                if (s->get_system_id() == targetsysid) {
-                        RCLCPP_INFO(this->get_logger(), "Found target system (ID=%d)", targetsysid);
+                if (s->get_system_id() == this->get_parameter("targetsysid").as_int()) {
+                        RCLCPP_INFO(
+                                this->get_logger(),
+                                "Found target system (ID=%d)",
+                                this->get_parameter("targetsysid").as_int()
+                        );
+
                         drone = s;
                         passthrough = std::make_shared<MavlinkPassthrough>(drone);
                         passthrough->subscribe_message_async(

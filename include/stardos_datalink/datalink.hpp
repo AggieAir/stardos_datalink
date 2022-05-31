@@ -2,6 +2,7 @@
 #define DATALINK_HPP
 
 #include <functional>
+
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/mavlink_types.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
@@ -47,10 +48,15 @@ private:
         rclcpp::Subscription<Control>::SharedPtr control_subscription;
 
         // Which topics to listen to in order to forward over mavlink
+        // * for heartbeats
         std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr> heartbeat_subscriptions;
+        // * for control messages
+        std::vector<rclcpp::Subscription<Control>::SharedPtr> signal_subscriptions;
+
         // Which topics to publish onto when we get a mavlink message
+        // * for heartbeats
         std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr> heartbeat_publishers;
-        // The publisher that sends control signals received over MAVLink
+        // * for control messages
         std::vector<rclcpp::Publisher<Control>::SharedPtr> signal_publishers;
 
         // Wrapper around Mavsdk::set_configuration
@@ -65,15 +71,17 @@ private:
         void timer_callback();
         // Runs every time we get a heartbeat
         void heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg);
+        // Runs every time we get a control signal
+        void signal_callback(int id, Control::SharedPtr msg);
         // What to call when we see a control message
         // This is a STARDOS concept; in this context the control node tells us
         // which topics to publish and subscribe on. It is a JSON string.
         void control_callback(Control::SharedPtr msg);
         // Process a NodeHeartbeat and turn it into a float array
-        void telemetry_received_callback(mavlink_message_t msg);
+        void mavlink_received_callback(mavlink_message_t msg);
 
         template<typename T>
-        void fill_subscriber_list(Json::Value& topics, std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest);
+        void fill_subscriber_list(Json::Value& topics, std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest, std::function<void(int, std::shared_ptr<T>)>);
 
         template<typename T>
         void fill_publisher_list(Json::Value& topics, std::vector<typename rclcpp::Publisher<T>::SharedPtr> *dest);

@@ -36,6 +36,7 @@ Datalink::Datalink(
 ) : Node(name),
         name{name},
         heartbeat_subscriptions{std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr>()},
+        signal_subscriptions{std::vector<rclcpp::Subscription<Control>::SharedPtr>()},
         heartbeat_publishers{std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr>()},
         signal_publishers{std::vector<rclcpp::Publisher<Control>::SharedPtr>()}
 {
@@ -119,7 +120,7 @@ void Datalink::check_systems() {
                         passthrough = std::make_shared<MavlinkPassthrough>(drone);
                         passthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY, 
-                                        std::bind(&Datalink::telemetry_received_callback, this, _1));
+                                        std::bind(&Datalink::mavlink_received_callback, this, _1));
 
                         get_system_timer->cancel();
                 }
@@ -135,6 +136,15 @@ void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
         send(TelemMessage::pack_heartbeat_message(msg, id));
 }
 
+void Datalink::signal_callback(int id, Control::SharedPtr) {
+        if (passthrough == nullptr) {
+                RCLCPP_INFO(this->get_logger(), "Tried to send a control signal before target system was found");
+                return;
+        }
+
+        send(TelemMessage::pack_control_message(id));
+}
+
 void Datalink::control_callback(Control::SharedPtr msg) {
         RCLCPP_INFO(this->get_logger(), "Got control callback");
         Json::Value root;
@@ -146,34 +156,62 @@ void Datalink::control_callback(Control::SharedPtr msg) {
         heartbeat_subscriptions.clear();
 
         RCLCPP_INFO(this->get_logger(), "Creating heartbeat subscribers");
-        this->fill_subscriber_list<NodeHeartbeat>(root["sub"], &this->heartbeat_subscriptions);
+        this->fill_subscriber_list<NodeHeartbeat>(
+                root["sub"],
+                &this->heartbeat_subscriptions,
+                std::bind(&Datalink::heartbeat_callback, this, _1, _2));
 
         RCLCPP_INFO(this->get_logger(), "Creating heartbeat publishers");
         this->fill_publisher_list<NodeHeartbeat>(root["pub"], &this->heartbeat_publishers);
 
+        RCLCPP_INFO(this->get_logger(), "Creating control message subscribers");
+        this->fill_subscriber_list<Control>(
+                root["control_sub"],
+                &this->signal_subscriptions,
+                std::bind(&Datalink::signal_callback, this, _1, _2));
+
         RCLCPP_INFO(this->get_logger(), "Creating control message publishers");
-        this->fill_publisher_list<Control>(root["control"], &this->signal_publishers);
+        this->fill_publisher_list<Control>(root["control_pub"], &this->signal_publishers);
 }
 
-void Datalink::telemetry_received_callback(mavlink_message_t msg) {
+void Datalink::mavlink_received_callback(mavlink_message_t msg) {
         RCLCPP_INFO(this->get_logger(), "received packet");
 
         mavlink_debug_float_array_t * floats = new mavlink_debug_float_array_t();
         mavlink_msg_debug_float_array_decode(&msg, floats);
 
         TelemMessage message = TelemMessage(floats->data);
-        NodeHeartbeat ros_message = message.unpack_heartbeat_message();
         TelemHeader head = message.get_header();
 
-        if (head.topic_id >= heartbeat_publishers.size()) {
-                RCLCPP_ERROR(this->get_logger(), "Publisher with ID=%d out of range", head.topic_id);
-        } else {
-                this->heartbeat_publishers[head.topic_id]->publish(ros_message);
+        NodeHeartbeat ros_message;
+        switch (head.msg_type) {
+        case floattelem::MSG_ID_HEARTBEAT:
+                ros_message = message.unpack_heartbeat_message();
+
+                if (head.topic_id >= heartbeat_publishers.size()) {
+                        RCLCPP_ERROR(this->get_logger(), "Heartbeat publisher with ID=%d out of range", head.topic_id);
+                } else {
+                        this->heartbeat_publishers[head.topic_id]->publish(ros_message);
+                }
+                break;
+        case floattelem::MSG_ID_CONTROL:
+                message.unpack_control_message();
+
+                if (head.topic_id >= signal_publishers.size()) {
+                        RCLCPP_ERROR(this->get_logger(), "Signal publisher with ID=%d out of range", head.topic_id);
+                } else {
+                        Control c{};
+                        c.options = std::string{};
+                        this->signal_publishers[head.topic_id]->publish(c);
+                }
+                break;
+        default:
+                RCLCPP_ERROR(this->get_logger(), "Unrecognized message ID: %d", head.msg_type);
         }
 }
 
 template<typename T>
-void Datalink::fill_subscriber_list(Json::Value& topics, std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest) {
+void Datalink::fill_subscriber_list(Json::Value& topics, std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest, std::function<void(int, std::shared_ptr<T>)> callback) {
         int id = 0;
         for (auto v = topics.begin(); v != topics.end(); v++) {
                 std::string topic = v->asString();
@@ -181,8 +219,8 @@ void Datalink::fill_subscriber_list(Json::Value& topics, std::vector<typename rc
                 dest->push_back(
                     this->create_subscription<T>(
                         topic, 10,
-                        [this, id] (std::shared_ptr<T> msg) {
-                          heartbeat_callback(id, msg);
+                        [this, id, callback] (std::shared_ptr<T> msg) {
+                                callback(id, msg);
                         }));
         }
 }

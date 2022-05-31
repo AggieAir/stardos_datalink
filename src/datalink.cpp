@@ -142,6 +142,10 @@ void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
                 return;
         }
 
+        if (ctrl->options.size() > floattelem::MAX_STRING_LENGTH) {
+                RCLCPP_ERROR(this->get_logger(), "Option string too long; will be truncated");
+        }
+
         send(TelemMessage::pack_control_message(ctrl->options, id));
 }
 
@@ -223,7 +227,6 @@ void Datalink::fill_subscriber_list(Json::Value& topics, std::vector<typename rc
 
 template<typename T>
 void Datalink::fill_publisher_list(Json::Value& topics, std::vector<typename rclcpp::Publisher<T>::SharedPtr> *dest) {
-        RCLCPP_INFO(this->get_logger(), "Creating subscribers");
         for (auto v = topics.begin(); v != topics.end(); v++) {
                 std::string topic = v->asString();
                 dest->push_back(

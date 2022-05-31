@@ -68,11 +68,10 @@ namespace floattelem {
                  * 24: n   3- n  action
                  */
 
-                if (options.size() > MAX_STRING_LENGTH) {
-                        throw new std::runtime_error("Control message string too long");
-                }
-
-                Message ret = Message(MSG_ID_CONTROL, MSG_BASE_LENGTH + options.size(), topic_id);
+                Message ret = Message(
+                        MSG_ID_CONTROL,
+                        MSG_BASE_LENGTH + (options.size() > MAX_STRING_LENGTH ? MAX_STRING_LENGTH : options.size()),
+                        topic_id);
 
                 char *datachar = ret.data_char();
 

@@ -61,6 +61,30 @@ namespace floattelem {
                 return ret;
         }
 
+        Message Message::pack_control_message(uint8_t topic_id) {
+                /*  bits  bytes
+                 *  0:23   0- 2  header
+                 * 24:31      3  action
+                 */
+
+                Message ret = Message(MSG_ID_CONTROL, MSG_LENGTH_CONTROL, topic_id);
+
+                return ret;
+        }
+
+        uint8_t Message::unpack_control_message() {
+                Header head = get_header();
+                if (head.msg_type != MSG_ID_CONTROL) {
+                        throw  wrong_id_error(head.msg_type, MSG_ID_CONTROL);
+                }
+                
+                if (head.msg_length != MSG_LENGTH_CONTROL) {
+                        throw wrong_length_error(head.msg_length, MSG_LENGTH_CONTROL);
+                }
+
+                return head.topic_id;
+        }
+
         float *Message::get_data() {
                 return data;
         }

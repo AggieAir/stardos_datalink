@@ -16,6 +16,9 @@ namespace floattelem {
         constexpr uint8_t MSG_ID_HEARTBEAT = 0x1;
         constexpr uint8_t MSG_LENGTH_HEARTBEAT = 14;
 
+        constexpr uint8_t MSG_ID_CONTROL = 0x2;
+        constexpr uint8_t MSG_LENGTH_CONTROL = 3;
+
         typedef struct {
                 uint8_t msg_type;
                 uint8_t msg_length;
@@ -31,6 +34,10 @@ namespace floattelem {
                 // heartbeat
                 static Message pack_heartbeat_message(NodeHeartbeat::SharedPtr in, uint8_t topic_id);
                 NodeHeartbeat unpack_heartbeat_message();
+
+                // control
+                static Message pack_control_message(uint8_t topic_id);
+                uint8_t unpack_control_message();
 
                 float *get_data();
         private:

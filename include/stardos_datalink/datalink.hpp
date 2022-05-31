@@ -2,10 +2,12 @@
 #define DATALINK_HPP
 
 #include <functional>
-#include <map>
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/mavlink_types.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
+
+#include <jsoncpp/json/json.h>
+#include <jsoncpp/json/value.h>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/timer.hpp"
@@ -48,6 +50,8 @@ private:
         std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr> heartbeat_subscriptions;
         // Which topics to publish onto when we get a mavlink message
         std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr> heartbeat_publishers;
+        // The publisher that sends control signals received over MAVLink
+        std::vector<rclcpp::Publisher<Control>::SharedPtr> signal_publishers;
 
         // Wrapper around Mavsdk::set_configuration
 	void configure();
@@ -67,6 +71,12 @@ private:
         void control_callback(Control::SharedPtr msg);
         // Process a NodeHeartbeat and turn it into a float array
         void telemetry_received_callback(mavlink_message_t msg);
+
+        template<typename T>
+        void fill_subscriber_list(Json::Value& topics, std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest);
+
+        template<typename T>
+        void fill_publisher_list(Json::Value& topics, std::vector<typename rclcpp::Publisher<T>::SharedPtr> *dest);
 };
 
 #endif //DATALINK

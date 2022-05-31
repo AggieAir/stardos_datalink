@@ -36,7 +36,8 @@ Datalink::Datalink(
 ) : Node(name),
         name{name},
         heartbeat_subscriptions{std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr>()},
-        heartbeat_publishers{std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr>()}
+        heartbeat_publishers{std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr>()},
+        signal_publishers{std::vector<rclcpp::Publisher<Control>::SharedPtr>()}
 {
         // MAVLink stuff, in parameters
         // this node's system id and component id
@@ -144,30 +145,14 @@ void Datalink::control_callback(Control::SharedPtr msg) {
 
         heartbeat_subscriptions.clear();
 
-        RCLCPP_INFO(this->get_logger(), "Creating publishers");
-        auto pub = root["pub"];
-        int id = 0;
-        for (auto v = pub.begin(); v != pub.end(); v++) {
-                std::string topic = v->asString();
+        RCLCPP_INFO(this->get_logger(), "Creating heartbeat subscribers");
+        this->fill_subscriber_list<NodeHeartbeat>(root["sub"], &this->heartbeat_subscriptions);
 
-                heartbeat_subscriptions.push_back(
-                    this->create_subscription<NodeHeartbeat>(
-                        topic, 10,
-                        [this, id] (NodeHeartbeat::SharedPtr msg) {
-                          heartbeat_callback(id, msg);
-                        }));
-        }
+        RCLCPP_INFO(this->get_logger(), "Creating heartbeat publishers");
+        this->fill_publisher_list<NodeHeartbeat>(root["pub"], &this->heartbeat_publishers);
 
-        RCLCPP_INFO(this->get_logger(), "Creating subscribers");
-        auto sub = root["sub"];
-        id = 0;
-        for (auto v = sub.begin(); v != sub.end(); v++) {
-                std::string topic = v->asString();
-                heartbeat_publishers.push_back(
-                        this->create_publisher<NodeHeartbeat>(
-                                topic,
-                                10));
-        }
+        RCLCPP_INFO(this->get_logger(), "Creating control message publishers");
+        this->fill_publisher_list<Control>(root["control"], &this->signal_publishers);
 }
 
 void Datalink::telemetry_received_callback(mavlink_message_t msg) {
@@ -184,5 +169,32 @@ void Datalink::telemetry_received_callback(mavlink_message_t msg) {
                 RCLCPP_ERROR(this->get_logger(), "Publisher with ID=%d out of range", head.topic_id);
         } else {
                 this->heartbeat_publishers[head.topic_id]->publish(ros_message);
+        }
+}
+
+template<typename T>
+void Datalink::fill_subscriber_list(Json::Value& topics, std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest) {
+        int id = 0;
+        for (auto v = topics.begin(); v != topics.end(); v++) {
+                std::string topic = v->asString();
+
+                dest->push_back(
+                    this->create_subscription<T>(
+                        topic, 10,
+                        [this, id] (std::shared_ptr<T> msg) {
+                          heartbeat_callback(id, msg);
+                        }));
+        }
+}
+
+template<typename T>
+void Datalink::fill_publisher_list(Json::Value& topics, std::vector<typename rclcpp::Publisher<T>::SharedPtr> *dest) {
+        RCLCPP_INFO(this->get_logger(), "Creating subscribers");
+        for (auto v = topics.begin(); v != topics.end(); v++) {
+                std::string topic = v->asString();
+                dest->push_back(
+                        this->create_publisher<T>(
+                                topic,
+                                10));
         }
 }

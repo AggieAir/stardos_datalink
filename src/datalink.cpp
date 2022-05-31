@@ -136,13 +136,13 @@ void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
         send(TelemMessage::pack_heartbeat_message(msg, id));
 }
 
-void Datalink::signal_callback(int id, Control::SharedPtr) {
+void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
         if (passthrough == nullptr) {
                 RCLCPP_INFO(this->get_logger(), "Tried to send a control signal before target system was found");
                 return;
         }
 
-        send(TelemMessage::pack_control_message(id));
+        send(TelemMessage::pack_control_message(ctrl->options, id));
 }
 
 void Datalink::control_callback(Control::SharedPtr msg) {
@@ -183,29 +183,25 @@ void Datalink::mavlink_received_callback(mavlink_message_t msg) {
         TelemMessage message = TelemMessage(floats->data);
         TelemHeader head = message.get_header();
 
-        NodeHeartbeat ros_message;
-        switch (head.msg_type) {
-        case floattelem::MSG_ID_HEARTBEAT:
-                ros_message = message.unpack_heartbeat_message();
+        if (head.msg_type == floattelem::MSG_ID_HEARTBEAT) {
+                NodeHeartbeat ros_message = message.unpack_heartbeat_message();
 
                 if (head.topic_id >= heartbeat_publishers.size()) {
                         RCLCPP_ERROR(this->get_logger(), "Heartbeat publisher with ID=%d out of range", head.topic_id);
                 } else {
                         this->heartbeat_publishers[head.topic_id]->publish(ros_message);
                 }
-                break;
-        case floattelem::MSG_ID_CONTROL:
-                message.unpack_control_message();
+        } else if (head.msg_type == floattelem::MSG_ID_CONTROL) {
+                std::string options = message.unpack_control_message();
 
                 if (head.topic_id >= signal_publishers.size()) {
                         RCLCPP_ERROR(this->get_logger(), "Signal publisher with ID=%d out of range", head.topic_id);
                 } else {
-                        Control c{};
-                        c.options = std::string{};
+                        Control c;
+                        c.options = options;
                         this->signal_publishers[head.topic_id]->publish(c);
                 }
-                break;
-        default:
+        } else {
                 RCLCPP_ERROR(this->get_logger(), "Unrecognized message ID: %d", head.msg_type);
         }
 }

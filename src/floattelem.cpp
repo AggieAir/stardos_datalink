@@ -1,3 +1,4 @@
+#include <cstring>
 #include <sstream>
 #include <stdexcept>
 #include <stdint.h>
@@ -61,28 +62,40 @@ namespace floattelem {
                 return ret;
         }
 
-        Message Message::pack_control_message(uint8_t topic_id) {
+        Message Message::pack_control_message(std::string options, uint8_t topic_id) {
                 /*  bits  bytes
                  *  0:23   0- 2  header
-                 * 24:31      3  action
+                 * 24: n   3- n  action
                  */
 
-                Message ret = Message(MSG_ID_CONTROL, MSG_LENGTH_CONTROL, topic_id);
+                if (options.size() > MAX_STRING_LENGTH) {
+                        throw new std::runtime_error("Control message string too long");
+                }
+
+                Message ret = Message(MSG_ID_CONTROL, MSG_BASE_LENGTH + options.size(), topic_id);
+
+                char *datachar = ret.data_char();
+
+                strncpy(datachar + MSG_BASE_LENGTH, options.c_str(), MAX_STRING_LENGTH);
 
                 return ret;
         }
 
-        uint8_t Message::unpack_control_message() {
+        std::string Message::unpack_control_message() {
                 Header head = get_header();
                 if (head.msg_type != MSG_ID_CONTROL) {
                         throw  wrong_id_error(head.msg_type, MSG_ID_CONTROL);
                 }
                 
-                if (head.msg_length != MSG_LENGTH_CONTROL) {
-                        throw wrong_length_error(head.msg_length, MSG_LENGTH_CONTROL);
+                if (head.msg_length > MSG_BASE_LENGTH + MAX_STRING_LENGTH) {
+                        throw wrong_length_error(head.msg_length, MSG_BASE_LENGTH + MAX_STRING_LENGTH);
                 }
 
-                return head.topic_id;
+                char *datachar = this->data_char();
+
+                return std::string(
+                        datachar + MSG_BASE_LENGTH,
+                        head.msg_length - MSG_BASE_LENGTH);
         }
 
         float *Message::get_data() {
@@ -121,6 +134,10 @@ namespace floattelem {
 
         uint16_t * Message::data_u16() {
                 return (uint16_t*) data;
+        }
+
+        char * Message::data_char() {
+                return (char*) data;
         }
 
         std::runtime_error Message::wrong_id_error(uint8_t recv, uint8_t want) {

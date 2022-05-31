@@ -13,11 +13,13 @@
 using stardos_interfaces::msg::NodeHeartbeat;
 
 namespace floattelem {
+        constexpr uint8_t MSG_BASE_LENGTH = 3;
+
         constexpr uint8_t MSG_ID_HEARTBEAT = 0x1;
         constexpr uint8_t MSG_LENGTH_HEARTBEAT = 14;
 
         constexpr uint8_t MSG_ID_CONTROL = 0x2;
-        constexpr uint8_t MSG_LENGTH_CONTROL = 3;
+        constexpr uint8_t MAX_STRING_LENGTH = 12;
 
         typedef struct {
                 uint8_t msg_type;
@@ -36,8 +38,8 @@ namespace floattelem {
                 NodeHeartbeat unpack_heartbeat_message();
 
                 // control
-                static Message pack_control_message(uint8_t topic_id);
-                uint8_t unpack_control_message();
+                static Message pack_control_message(std::string options, uint8_t topic_id);
+                std::string unpack_control_message();
 
                 float *get_data();
         private:
@@ -47,6 +49,7 @@ namespace floattelem {
                 void populate_header(uint8_t msg_type, uint8_t msg_length, uint8_t topic_id);
                 inline uint8_t * data_u8();
                 inline uint16_t * data_u16();
+                inline char * data_char();
                 static std::runtime_error wrong_id_error(uint8_t recv, uint8_t want);
                 static std::runtime_error wrong_length_error(uint8_t recv, uint8_t want);
 

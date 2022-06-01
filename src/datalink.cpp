@@ -161,21 +161,21 @@ void Datalink::control_callback(Control::SharedPtr msg) {
 
         RCLCPP_INFO(this->get_logger(), "Creating heartbeat subscribers");
         this->fill_subscriber_list<NodeHeartbeat>(
-                root["sub"],
+                root["heartbeat"]["sub"],
                 &this->heartbeat_subscriptions,
                 std::bind(&Datalink::heartbeat_callback, this, _1, _2));
 
         RCLCPP_INFO(this->get_logger(), "Creating heartbeat publishers");
-        this->fill_publisher_list<NodeHeartbeat>(root["pub"], &this->heartbeat_publishers);
+        this->fill_publisher_list<NodeHeartbeat>(root["heartbeat"]["pub"], &this->heartbeat_publishers);
 
         RCLCPP_INFO(this->get_logger(), "Creating control message subscribers");
         this->fill_subscriber_list<Control>(
-                root["control_sub"],
+                root["control"]["sub"],
                 &this->signal_subscriptions,
                 std::bind(&Datalink::signal_callback, this, _1, _2));
 
         RCLCPP_INFO(this->get_logger(), "Creating control message publishers");
-        this->fill_publisher_list<Control>(root["control_pub"], &this->signal_publishers);
+        this->fill_publisher_list<Control>(root["control"]["pub"], &this->signal_publishers);
 }
 
 void Datalink::mavlink_received_callback(mavlink_message_t msg) {

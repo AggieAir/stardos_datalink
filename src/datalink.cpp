@@ -11,6 +11,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 #include "stardos_interfaces/msg/control.hpp"
+#include "stardos_interfaces/msg/gps_position.hpp"
+#include "stardos_interfaces/msg/attitude.hpp"
 
 #include "datalink.hpp"
 #include "floattelem.hpp"
@@ -21,6 +23,8 @@ using namespace std::placeholders;
 
 using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::Control;
+using stardos_interfaces::msg::GPSPosition;
+using stardos_interfaces::msg::Attitude;
 
 typedef floattelem::Message TelemMessage;
 typedef floattelem::Header TelemHeader;
@@ -64,6 +68,9 @@ Datalink::Datalink(
                         name + "/control",
                         10,
                         std::bind(&Datalink::control_callback, this, _1));
+
+        gps_publisher = this->create_publisher<GPSPosition>("gps_position", 10);
+        attitude_publisher = this->create_publisher<Attitude>("attitude", 10);
 
         RCLCPP_INFO(this->get_logger(), "Binding timer callback");
 
@@ -120,7 +127,15 @@ void Datalink::check_systems() {
                         passthrough = std::make_shared<MavlinkPassthrough>(drone);
                         passthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY, 
-                                        std::bind(&Datalink::mavlink_received_callback, this, _1));
+                                        std::bind(&Datalink::array_received_callback, this, _1));
+
+                        passthrough->subscribe_message_async(
+                                        MAVLINK_MSG_ID_GPS_RAW_INT,
+                                        std::bind(&Datalink::gps_received_callback, this, _1));
+
+                        passthrough->subscribe_message_async(
+                                        MAVLINK_MSG_ID_ATTITUDE,
+                                        std::bind(&Datalink::attitude_received_callback, this, _1));
 
                         get_system_timer->cancel();
                 }
@@ -178,7 +193,7 @@ void Datalink::control_callback(Control::SharedPtr msg) {
         this->fill_publisher_list<Control>(root["control"]["pub"], &this->signal_publishers);
 }
 
-void Datalink::mavlink_received_callback(mavlink_message_t msg) {
+void Datalink::array_received_callback(mavlink_message_t msg) {
         RCLCPP_INFO(this->get_logger(), "received packet");
 
         mavlink_debug_float_array_t * floats = new mavlink_debug_float_array_t();
@@ -208,6 +223,49 @@ void Datalink::mavlink_received_callback(mavlink_message_t msg) {
         } else {
                 RCLCPP_ERROR(this->get_logger(), "Unrecognized message ID: %d", head.msg_type);
         }
+}
+
+void Datalink::gps_received_callback(mavlink_message_t msg) {
+        mavlink_gps_raw_int_t *gps = new mavlink_gps_raw_int_t();
+        mavlink_msg_gps_raw_int_decode(&msg, gps);
+
+        GPSPosition ros_message;
+
+        ros_message.alt = gps->alt;
+        ros_message.alt_ellipsoid = gps->alt_ellipsoid;
+        ros_message.cog = gps->cog;
+        ros_message.eph = gps->eph;
+        ros_message.epv = gps->epv;
+        ros_message.fix_type = gps->fix_type;
+        ros_message.h_acc = gps->h_acc;
+        ros_message.hdg_acc = gps->hdg_acc;
+        ros_message.lat = gps->lat;
+        ros_message.lon = gps->lon;
+        ros_message.satellites_visible = gps->satellites_visible;
+        ros_message.time_usec = gps->time_usec;
+        ros_message.v_acc = gps->v_acc;
+        ros_message.vel = gps->vel;
+        ros_message.vel_acc = gps->vel_acc;
+        ros_message.yaw = gps->yaw;
+
+        gps_publisher->publish(ros_message);
+}
+
+void Datalink::attitude_received_callback(mavlink_message_t msg) {
+        mavlink_attitude_t *attitude = new mavlink_attitude_t();
+        mavlink_msg_attitude_decode(&msg, attitude);
+
+        Attitude ros_message;
+
+        ros_message.time_boot_ms = attitude->time_boot_ms;
+        ros_message.roll = attitude->roll;
+        ros_message.pitch = attitude->pitch;
+        ros_message.yaw = attitude->yaw;
+        ros_message.rollspeed = attitude->rollspeed;
+        ros_message.pitchspeed = attitude->pitchspeed;
+        ros_message.yawspeed = attitude->yawspeed;
+
+        attitude_publisher->publish(ros_message);
 }
 
 template<typename T>

@@ -10,15 +10,20 @@
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
 
+#include "rclcpp/publisher.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/timer.hpp"
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 #include "stardos_interfaces/msg/control.hpp"
+#include "stardos_interfaces/msg/gps_position.hpp"
+#include "stardos_interfaces/msg/attitude.hpp"
 
 #include "floattelem.hpp"
 
 using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::Control;
+using stardos_interfaces::msg::GPSPosition;
+using stardos_interfaces::msg::Attitude;
 
 class Datalink: public rclcpp::Node
 {
@@ -59,6 +64,9 @@ private:
         // * for control messages
         std::vector<rclcpp::Publisher<Control>::SharedPtr> signal_publishers;
 
+        rclcpp::Publisher<GPSPosition>::SharedPtr gps_publisher;
+        rclcpp::Publisher<Attitude>::SharedPtr attitude_publisher;
+
         // Wrapper around Mavsdk::set_configuration
 	void configure();
         // Bind to the connection_url
@@ -78,7 +86,9 @@ private:
         // which topics to publish and subscribe on. It is a JSON string.
         void control_callback(Control::SharedPtr msg);
         // Process a NodeHeartbeat and turn it into a float array
-        void mavlink_received_callback(mavlink_message_t msg);
+        void array_received_callback(mavlink_message_t msg);
+        void gps_received_callback(mavlink_message_t msg);
+        void attitude_received_callback(mavlink_message_t msg);
 
         template<typename T>
         void fill_subscriber_list(Json::Value& topics, std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest, std::function<void(int, std::shared_ptr<T>)>);

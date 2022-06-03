@@ -119,7 +119,7 @@ void Datalink::send(TelemMessage msg) {
 
 void Datalink::check_systems() {
         for (auto s : dc.systems()) {
-                if (s->get_system_id() == this->get_parameter("targetsysid").as_int()) {
+                if (s->get_system_id() == this->get_parameter("targetsysid").as_int() && target != nullptr) {
                         // the target for float telemetry
                         RCLCPP_INFO(
                                 this->get_logger(),
@@ -133,15 +133,22 @@ void Datalink::check_systems() {
                         targetPassthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY, 
                                         std::bind(&Datalink::array_received_callback, this, _1));
-                } else if (s->get_system_id() == 1) {
+                }
+
+                if (s->get_system_id() == 1 && target != nullptr) {
                         // the autopilot
                         RCLCPP_INFO(
                                 this->get_logger(),
                                 "Found autopilot"
                         );
 
-                        autopilot = s;
-                        autopilotPassthrough = std::make_shared<MavlinkPassthrough>(target);
+                        if (this->get_parameter("targetsysid").as_int() == 1) {
+                                autopilot = target;
+                                autopilotPassthrough = targetPassthrough;
+                        } else {
+                                autopilot = s;
+                                autopilotPassthrough = std::make_shared<MavlinkPassthrough>(target);
+                        }
 
                         targetPassthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_GPS_RAW_INT,

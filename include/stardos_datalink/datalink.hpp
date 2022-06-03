@@ -17,6 +17,7 @@
 #include "stardos_interfaces/msg/control.hpp"
 #include "stardos_interfaces/msg/gps_position.hpp"
 #include "stardos_interfaces/msg/attitude.hpp"
+#include "stardos_interfaces/msg/system_time.hpp"
 
 #include "floattelem.hpp"
 
@@ -24,6 +25,7 @@ using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::Control;
 using stardos_interfaces::msg::GPSPosition;
 using stardos_interfaces::msg::Attitude;
+using stardos_interfaces::msg::SystemTime;
 
 class Datalink: public rclcpp::Node
 {
@@ -66,6 +68,7 @@ private:
 
         rclcpp::Publisher<GPSPosition>::SharedPtr gps_publisher;
         rclcpp::Publisher<Attitude>::SharedPtr attitude_publisher;
+        rclcpp::Publisher<SystemTime>::SharedPtr systime_publisher;
 
         // Wrapper around Mavsdk::set_configuration
 	void configure();
@@ -89,6 +92,7 @@ private:
         void array_received_callback(mavlink_message_t msg);
         void gps_received_callback(mavlink_message_t msg);
         void attitude_received_callback(mavlink_message_t msg);
+        void systime_received_callback(mavlink_message_t msg);
 
         template<typename T>
         void fill_subscriber_list(Json::Value& topics, std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest, std::function<void(int, std::shared_ptr<T>)>);

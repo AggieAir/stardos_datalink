@@ -13,6 +13,7 @@
 #include "stardos_interfaces/msg/control.hpp"
 #include "stardos_interfaces/msg/gps_position.hpp"
 #include "stardos_interfaces/msg/attitude.hpp"
+#include "stardos_interfaces/msg/system_time.hpp"
 
 #include "datalink.hpp"
 #include "floattelem.hpp"
@@ -25,6 +26,7 @@ using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::Control;
 using stardos_interfaces::msg::GPSPosition;
 using stardos_interfaces::msg::Attitude;
+using stardos_interfaces::msg::SystemTime;
 
 typedef floattelem::Message TelemMessage;
 typedef floattelem::Header TelemHeader;
@@ -71,6 +73,7 @@ Datalink::Datalink(
 
         gps_publisher = this->create_publisher<GPSPosition>("gps_position", 10);
         attitude_publisher = this->create_publisher<Attitude>("attitude", 10);
+        systime_publisher = this->create_publisher<SystemTime>("system_time", 10);
 
         RCLCPP_INFO(this->get_logger(), "Binding timer callback");
 
@@ -125,6 +128,7 @@ void Datalink::check_systems() {
 
                         drone = s;
                         passthrough = std::make_shared<MavlinkPassthrough>(drone);
+
                         passthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY, 
                                         std::bind(&Datalink::array_received_callback, this, _1));
@@ -136,6 +140,10 @@ void Datalink::check_systems() {
                         passthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_ATTITUDE,
                                         std::bind(&Datalink::attitude_received_callback, this, _1));
+
+                        passthrough->subscribe_message_async(
+                                        MAVLINK_MSG_ID_SYSTEM_TIME,
+                                        std::bind(&Datalink::systime_received_callback, this, _1));
 
                         get_system_timer->cancel();
                 }
@@ -266,6 +274,18 @@ void Datalink::attitude_received_callback(mavlink_message_t msg) {
         ros_message.yawspeed = attitude->yawspeed;
 
         attitude_publisher->publish(ros_message);
+}
+
+void Datalink::systime_received_callback(mavlink_message_t msg) {
+        mavlink_system_time_t *systime = new mavlink_system_time_t();
+        mavlink_msg_system_time_decode(&msg, systime);
+
+        SystemTime ros_message;
+
+        ros_message.time_boot_ms = systime->time_boot_ms;
+        ros_message.time_unix_us = systime->time_unix_usec;
+
+        systime_publisher->publish(ros_message);
 }
 
 template<typename T>

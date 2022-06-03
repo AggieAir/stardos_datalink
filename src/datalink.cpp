@@ -71,6 +71,8 @@ Datalink::Datalink(
                         10,
                         std::bind(&Datalink::control_callback, this, _1));
 
+        RCLCPP_INFO(this->get_logger(), "Creating MAVLink bridge publishers");
+
         gps_publisher = this->create_publisher<GPSPosition>("gps_position", 10);
         attitude_publisher = this->create_publisher<Attitude>("attitude", 10);
         systime_publisher = this->create_publisher<SystemTime>("system_time", 10);
@@ -137,10 +139,7 @@ void Datalink::check_systems() {
 
                 if (s->get_system_id() == 1 && autopilot == nullptr) {
                         // the autopilot
-                        RCLCPP_INFO(
-                                this->get_logger(),
-                                "Found autopilot"
-                        );
+                        RCLCPP_INFO(this->get_logger(), "Found autopilot");
 
                         if (this->get_parameter("targetsysid").as_int() == 1) {
                                 autopilot = target;
@@ -149,6 +148,9 @@ void Datalink::check_systems() {
                                 autopilot = s;
                                 autopilotPassthrough = std::make_shared<MavlinkPassthrough>(autopilot);
                         }
+
+
+                        RCLCPP_INFO(this->get_logger(), "Bridging MAVLink messages");
 
                         autopilotPassthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_GPS_RAW_INT,
@@ -164,6 +166,7 @@ void Datalink::check_systems() {
                 }
 
                 if (target != nullptr && autopilot != nullptr) {
+                        RCLCPP_INFO(this->get_logger(), "Target and autopilot found; ending search.");
                         get_system_timer->cancel();
                 }
         }
@@ -221,8 +224,6 @@ void Datalink::control_callback(Control::SharedPtr msg) {
 }
 
 void Datalink::array_received_callback(mavlink_message_t msg) {
-        RCLCPP_INFO(this->get_logger(), "received packet");
-
         mavlink_debug_float_array_t * floats = new mavlink_debug_float_array_t();
         mavlink_msg_debug_float_array_decode(&msg, floats);
 
@@ -251,6 +252,11 @@ void Datalink::array_received_callback(mavlink_message_t msg) {
                 RCLCPP_ERROR(this->get_logger(), "Unrecognized message ID: %d", head.msg_type);
         }
 }
+
+// here's a fun section full of lots of repetitive code
+// this all is responsible for bridging mavlink messages to ROS topics
+// the way I do this is by copying all of the fields.
+// if we ever switch to using the PX4-ROS2 bridge, this is all getting replaced.
 
 void Datalink::gps_received_callback(mavlink_message_t msg) {
         mavlink_gps_raw_int_t *gps = new mavlink_gps_raw_int_t();

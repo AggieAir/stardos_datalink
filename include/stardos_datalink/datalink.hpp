@@ -45,13 +45,19 @@ private:
         std::string name;
         // Instance of MAVSDK -- this models the connection
   	mavsdk::Mavsdk dc;
+        // Reference to autopilot system
+	std::shared_ptr<mavsdk::System> autopilot;
+        // Reference to MAVLink system to send telemetry to
+	std::shared_ptr<mavsdk::System> target;
+
+        // These allow us to pass messages directly to the systems
+	std::shared_ptr<mavsdk::MavlinkPassthrough> autopilotPassthrough;
+	std::shared_ptr<mavsdk::MavlinkPassthrough> targetPassthrough;
+
         // Runs every second; looks for systems
         rclcpp::TimerBase::SharedPtr get_system_timer;
-        // This allows us to send our own messages here
-	std::shared_ptr<mavsdk::MavlinkPassthrough> passthrough;
-        // Reference to other MAVLink system
-	std::shared_ptr<mavsdk::System> drone;
-        // Publisher to report heartbeat data
+
+        // Subscribes to notifications from the STARDOS control node
         rclcpp::Subscription<Control>::SharedPtr control_subscription;
 
         // Which topics to listen to in order to forward over mavlink
@@ -90,6 +96,9 @@ private:
         void control_callback(Control::SharedPtr msg);
         // Process a NodeHeartbeat and turn it into a float array
         void array_received_callback(mavlink_message_t msg);
+        
+        // These all process particular mavlink message types
+        // There's not much to see, tbh
         void gps_received_callback(mavlink_message_t msg);
         void attitude_received_callback(mavlink_message_t msg);
         void systime_received_callback(mavlink_message_t msg);

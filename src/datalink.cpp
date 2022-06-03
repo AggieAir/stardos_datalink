@@ -101,8 +101,8 @@ void Datalink::send(TelemMessage msg) {
         mavlink_message_t message;
 
         mavlink_msg_debug_float_array_pack(
-                passthrough->get_our_sysid(), // SystemID
-                passthrough->get_our_compid(), //My comp ID
+                targetPassthrough->get_our_sysid(), // SystemID
+                targetPassthrough->get_our_compid(), //My comp ID
                 &message, //Message reference
                 1, //timeing is 1 sec
                 name.c_str(),
@@ -110,7 +110,7 @@ void Datalink::send(TelemMessage msg) {
                 msg.get_data()
         );
         
-        MavlinkPassthrough::Result result = passthrough->send_message(message);
+        MavlinkPassthrough::Result result = targetPassthrough->send_message(message);
 
         if (result != MavlinkPassthrough::Result::Success) {
                 std::cout << "command send failed: " << result << "\n";
@@ -120,28 +120,38 @@ void Datalink::send(TelemMessage msg) {
 void Datalink::check_systems() {
         for (auto s : dc.systems()) {
                 if (s->get_system_id() == this->get_parameter("targetsysid").as_int()) {
+                        // the target for float telemetry
                         RCLCPP_INFO(
                                 this->get_logger(),
                                 "Found target system (ID=%d)",
                                 this->get_parameter("targetsysid").as_int()
                         );
 
-                        drone = s;
-                        passthrough = std::make_shared<MavlinkPassthrough>(drone);
+                        target = s;
+                        targetPassthrough = std::make_shared<MavlinkPassthrough>(target);
 
-                        passthrough->subscribe_message_async(
+                        targetPassthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY, 
                                         std::bind(&Datalink::array_received_callback, this, _1));
+                } else if (s->get_system_id() == 1) {
+                        // the autopilot
+                        RCLCPP_INFO(
+                                this->get_logger(),
+                                "Found autopilot"
+                        );
 
-                        passthrough->subscribe_message_async(
+                        autopilot = s;
+                        autopilotPassthrough = std::make_shared<MavlinkPassthrough>(target);
+
+                        targetPassthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_GPS_RAW_INT,
                                         std::bind(&Datalink::gps_received_callback, this, _1));
 
-                        passthrough->subscribe_message_async(
+                        targetPassthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_ATTITUDE,
                                         std::bind(&Datalink::attitude_received_callback, this, _1));
 
-                        passthrough->subscribe_message_async(
+                        targetPassthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_SYSTEM_TIME,
                                         std::bind(&Datalink::systime_received_callback, this, _1));
 
@@ -151,7 +161,7 @@ void Datalink::check_systems() {
 }
 
 void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
-        if (passthrough == nullptr) {
+        if (targetPassthrough == nullptr) {
                 RCLCPP_INFO(this->get_logger(), "Tried to send a message before target system was found");
                 return;
         }
@@ -160,7 +170,7 @@ void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
 }
 
 void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
-        if (passthrough == nullptr) {
+        if (targetPassthrough == nullptr) {
                 RCLCPP_INFO(this->get_logger(), "Tried to send a control signal before target system was found");
                 return;
         }

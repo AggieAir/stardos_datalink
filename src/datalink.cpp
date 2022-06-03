@@ -119,7 +119,7 @@ void Datalink::send(TelemMessage msg) {
 
 void Datalink::check_systems() {
         for (auto s : dc.systems()) {
-                if (s->get_system_id() == this->get_parameter("targetsysid").as_int() && target != nullptr) {
+                if (s->get_system_id() == this->get_parameter("targetsysid").as_int() && target == nullptr) {
                         // the target for float telemetry
                         RCLCPP_INFO(
                                 this->get_logger(),
@@ -135,7 +135,7 @@ void Datalink::check_systems() {
                                         std::bind(&Datalink::array_received_callback, this, _1));
                 }
 
-                if (s->get_system_id() == 1 && target != nullptr) {
+                if (s->get_system_id() == 1 && autopilot == nullptr) {
                         // the autopilot
                         RCLCPP_INFO(
                                 this->get_logger(),
@@ -147,21 +147,23 @@ void Datalink::check_systems() {
                                 autopilotPassthrough = targetPassthrough;
                         } else {
                                 autopilot = s;
-                                autopilotPassthrough = std::make_shared<MavlinkPassthrough>(target);
+                                autopilotPassthrough = std::make_shared<MavlinkPassthrough>(autopilot);
                         }
 
-                        targetPassthrough->subscribe_message_async(
+                        autopilotPassthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_GPS_RAW_INT,
                                         std::bind(&Datalink::gps_received_callback, this, _1));
 
-                        targetPassthrough->subscribe_message_async(
+                        autopilotPassthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_ATTITUDE,
                                         std::bind(&Datalink::attitude_received_callback, this, _1));
 
-                        targetPassthrough->subscribe_message_async(
+                        autopilotPassthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_SYSTEM_TIME,
                                         std::bind(&Datalink::systime_received_callback, this, _1));
+                }
 
+                if (target != nullptr && autopilot != nullptr) {
                         get_system_timer->cancel();
                 }
         }

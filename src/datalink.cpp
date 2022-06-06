@@ -22,6 +22,7 @@ using namespace mavsdk;
 using namespace std::literals::chrono_literals;
 using namespace std::placeholders;
 
+using rcl_interfaces::msg::ParameterDescriptor;
 using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::Control;
 using stardos_interfaces::msg::GPSPosition;
@@ -38,7 +39,8 @@ Datalink::Datalink(
         bool heartbeat,
         std::string connection_url,
         uint8_t targetsysid,
-        uint8_t targetcompid
+        uint8_t targetcompid,
+        bool autopilot_telemetry
 ) : Node(name),
         name{name},
         heartbeat_subscriptions{std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr>()},
@@ -46,20 +48,25 @@ Datalink::Datalink(
         heartbeat_publishers{std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr>()},
         signal_publishers{std::vector<rclcpp::Publisher<Control>::SharedPtr>()}
 {
+        ParameterDescriptor ro;
+        ro.read_only = true;
+
         // MAVLink stuff, in parameters
         // this node's system id and component id
-        this->declare_parameter<int>("sysid", sysid);
-        this->declare_parameter<int>("compid", compid);
+        this->declare_parameter<int>("sysid", sysid, ro);
+        this->declare_parameter<int>("compid", compid, ro);
 
         // the target node's system id and component id
-        this->declare_parameter<int>("targetsysid", targetsysid);
-        this->declare_parameter<int>("targetcompid", targetcompid);
+        this->declare_parameter<int>("targetsysid", targetsysid, ro);
+        this->declare_parameter<int>("targetcompid", targetcompid, ro);
         
         // whether to send heartbeats
-        this->declare_parameter<bool>("heartbeat", heartbeat);
+        this->declare_parameter<bool>("heartbeat", heartbeat, ro);
 
         // where to forge a connection to
-        this->declare_parameter<std::string>("connection_url", connection_url);
+        this->declare_parameter<std::string>("connection_url", connection_url, ro);
+
+        this->declare_parameter<bool>("autopilot_telemetry", autopilot_telemetry, ro);
 
 	configure();
 	connect();
@@ -71,11 +78,7 @@ Datalink::Datalink(
                         10,
                         std::bind(&Datalink::control_callback, this, _1));
 
-        RCLCPP_INFO(this->get_logger(), "Creating MAVLink bridge publishers");
-
-        gps_publisher = this->create_publisher<GPSPosition>("gps_position", 10);
-        attitude_publisher = this->create_publisher<Attitude>("attitude", 10);
-        systime_publisher = this->create_publisher<SystemTime>("system_time", 10);
+        setup_autopilot_telemetry(this->get_parameter("autopilot_telemetry").as_bool());
 
         RCLCPP_INFO(this->get_logger(), "Binding timer callback");
 
@@ -99,12 +102,29 @@ void Datalink::connect() {
         dc.add_any_connection(this->get_parameter("connection_url").as_string());
 }
 
+void Datalink::setup_autopilot_telemetry(bool activate) {
+        if (activate) {
+                RCLCPP_INFO(this->get_logger(), "Creating MAVLink bridge publishers");
+
+                gps_publisher = this->create_publisher<GPSPosition>("gps_position", 10);
+                attitude_publisher = this->create_publisher<Attitude>("attitude", 10);
+                systime_publisher = this->create_publisher<SystemTime>("system_time", 10);
+                if (get_system_timer != nullptr && get_system_timer->is_canceled()) {
+                        get_system_timer->reset();
+                }
+        } else {
+                gps_publisher = nullptr;
+                attitude_publisher = nullptr;
+                systime_publisher = nullptr;
+        }
+}
+
 void Datalink::send(TelemMessage msg) {
         mavlink_message_t message;
 
         mavlink_msg_debug_float_array_pack(
-                targetPassthrough->get_our_sysid(), // SystemID
-                targetPassthrough->get_our_compid(), //My comp ID
+                target_passthrough->get_our_sysid(), // SystemID
+                target_passthrough->get_our_compid(), //My comp ID
                 &message, //Message reference
                 1, //timeing is 1 sec
                 name.c_str(),
@@ -112,7 +132,7 @@ void Datalink::send(TelemMessage msg) {
                 msg.get_data()
         );
         
-        MavlinkPassthrough::Result result = targetPassthrough->send_message(message);
+        MavlinkPassthrough::Result result = target_passthrough->send_message(message);
 
         if (result != MavlinkPassthrough::Result::Success) {
                 std::cout << "command send failed: " << result << "\n";
@@ -130,50 +150,53 @@ void Datalink::check_systems() {
                         );
 
                         target = s;
-                        targetPassthrough = std::make_shared<MavlinkPassthrough>(target);
+                        target_passthrough = std::make_shared<MavlinkPassthrough>(target);
 
-                        targetPassthrough->subscribe_message_async(
+                        target_passthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY, 
                                         std::bind(&Datalink::array_received_callback, this, _1));
                 }
 
-                if (s->get_system_id() == 1 && autopilot == nullptr) {
+                if (s->get_system_id() == 1 &&
+                                autopilot == nullptr &&
+                                this->get_parameter("autopilot_telemetry").as_bool()) {
                         // the autopilot
                         RCLCPP_INFO(this->get_logger(), "Found autopilot");
 
                         if (this->get_parameter("targetsysid").as_int() == 1) {
                                 autopilot = target;
-                                autopilotPassthrough = targetPassthrough;
+                                autopilot_passthrough = target_passthrough;
                         } else {
                                 autopilot = s;
-                                autopilotPassthrough = std::make_shared<MavlinkPassthrough>(autopilot);
+                                autopilot_passthrough = std::make_shared<MavlinkPassthrough>(autopilot);
                         }
 
 
                         RCLCPP_INFO(this->get_logger(), "Bridging MAVLink messages");
 
-                        autopilotPassthrough->subscribe_message_async(
+                        autopilot_passthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_GPS_RAW_INT,
                                         std::bind(&Datalink::gps_received_callback, this, _1));
 
-                        autopilotPassthrough->subscribe_message_async(
+                        autopilot_passthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_ATTITUDE,
                                         std::bind(&Datalink::attitude_received_callback, this, _1));
 
-                        autopilotPassthrough->subscribe_message_async(
+                        autopilot_passthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_SYSTEM_TIME,
                                         std::bind(&Datalink::systime_received_callback, this, _1));
                 }
 
-                if (target != nullptr && autopilot != nullptr) {
-                        RCLCPP_INFO(this->get_logger(), "Target and autopilot found; ending search.");
+                if (target != nullptr &&
+                                (autopilot != nullptr || !this->get_parameter("autopilot_telemetry").as_bool())) {
+                        RCLCPP_INFO(this->get_logger(), "Systems found; ending search.");
                         get_system_timer->cancel();
                 }
         }
 }
 
 void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
-        if (targetPassthrough == nullptr) {
+        if (target_passthrough == nullptr) {
                 RCLCPP_INFO(this->get_logger(), "Tried to send a message before target system was found");
                 return;
         }
@@ -182,7 +205,7 @@ void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
 }
 
 void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
-        if (targetPassthrough == nullptr) {
+        if (target_passthrough == nullptr) {
                 RCLCPP_INFO(this->get_logger(), "Tried to send a control signal before target system was found");
                 return;
         }

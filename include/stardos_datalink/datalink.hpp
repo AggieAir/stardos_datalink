@@ -37,7 +37,8 @@ public:
                 bool heartbeat,
                 std::string connection_url,
                 uint8_t targetsysid,
-                uint8_t targetcompid
+                uint8_t targetcompid,
+                bool autopilot_telemetry
         );
 
 private:
@@ -51,8 +52,8 @@ private:
 	std::shared_ptr<mavsdk::System> target;
 
         // These allow us to pass messages directly to the systems
-	std::shared_ptr<mavsdk::MavlinkPassthrough> autopilotPassthrough;
-	std::shared_ptr<mavsdk::MavlinkPassthrough> targetPassthrough;
+	std::shared_ptr<mavsdk::MavlinkPassthrough> autopilot_passthrough;
+	std::shared_ptr<mavsdk::MavlinkPassthrough> target_passthrough;
 
         // Runs every second; looks for systems
         rclcpp::TimerBase::SharedPtr get_system_timer;
@@ -72,6 +73,7 @@ private:
         // * for control messages
         std::vector<rclcpp::Publisher<Control>::SharedPtr> signal_publishers;
 
+        // Publishers for MAVLink data received from the autopilot
         rclcpp::Publisher<GPSPosition>::SharedPtr gps_publisher;
         rclcpp::Publisher<Attitude>::SharedPtr attitude_publisher;
         rclcpp::Publisher<SystemTime>::SharedPtr systime_publisher;
@@ -80,10 +82,17 @@ private:
 	void configure();
         // Bind to the connection_url
 	void connect();
+        // Setup autopilot telemetry
+        void setup_autopilot_telemetry(bool activated);
         // Send a telemetry packet
 	void send(floattelem::Message msg);
         // Check to see if there is another system; connect if so
         void check_systems();
+
+        /* ********************** *
+         * ENTERING CALLBACK LAND *
+         * ********************** */
+
         // Runs every 100ms
         void timer_callback();
         // Runs every time we get a heartbeat
@@ -103,6 +112,8 @@ private:
         void attitude_received_callback(mavlink_message_t msg);
         void systime_received_callback(mavlink_message_t msg);
 
+        // Convenience methods -- takes a list of topics and subscribes/creates publishers to all of them
+        // Makes it a lot easier to handle "pub" and "sub" lists from the control listener
         template<typename T>
         void fill_subscriber_list(Json::Value& topics, std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest, std::function<void(int, std::shared_ptr<T>)>);
 

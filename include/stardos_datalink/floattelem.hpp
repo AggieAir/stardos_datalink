@@ -16,10 +16,10 @@ namespace floattelem {
         constexpr uint8_t MSG_BASE_LENGTH = 3;
 
         constexpr uint8_t MSG_ID_HEARTBEAT = 0x1;
-        constexpr uint8_t MSG_LENGTH_HEARTBEAT = 14;
+        constexpr uint8_t MSG_LENGTH_HEARTBEAT = 12;
 
         constexpr uint8_t MSG_ID_CONTROL = 0x2;
-        constexpr uint8_t MAX_STRING_LENGTH = 12;
+        constexpr uint8_t MAX_STRING_LENGTH = 13;
 
         typedef struct {
                 uint8_t msg_type;

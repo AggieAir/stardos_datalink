@@ -46,7 +46,8 @@ Datalink::Datalink(
         heartbeat_subscriptions{std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr>()},
         signal_subscriptions{std::vector<rclcpp::Subscription<Control>::SharedPtr>()},
         heartbeat_publishers{std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr>()},
-        signal_publishers{std::vector<rclcpp::Publisher<Control>::SharedPtr>()}
+        signal_publishers{std::vector<rclcpp::Publisher<Control>::SharedPtr>()},
+        buffered_message{TelemMessage()}
 {
         ParameterDescriptor ro;
         ro.read_only = true;
@@ -201,7 +202,11 @@ void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
                 return;
         }
 
-        send(TelemMessage::pack_heartbeat_message(msg, id));
+        if (!buffered_message.push_heartbeat_message(msg, id)) {
+                send(buffered_message);
+                buffered_message.reset();
+                buffered_message.push_heartbeat_message(msg, id);
+        }
 }
 
 void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
@@ -214,7 +219,11 @@ void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
                 RCLCPP_ERROR(this->get_logger(), "Option string too long; will be truncated");
         }
 
-        send(TelemMessage::pack_control_message(ctrl->options, id));
+        if (!buffered_message.push_control_message(ctrl->options, id)) {
+                send(buffered_message);
+                buffered_message.reset();
+                buffered_message.push_control_message(ctrl->options, id);
+        }
 }
 
 void Datalink::control_callback(Control::SharedPtr msg) {
@@ -251,10 +260,10 @@ void Datalink::array_received_callback(mavlink_message_t msg) {
         mavlink_msg_debug_float_array_decode(&msg, floats);
 
         TelemMessage message = TelemMessage(floats->data);
-        TelemHeader head = message.get_header();
+        TelemHeader head = message.next_header();
 
         if (head.msg_type == floattelem::MSG_ID_HEARTBEAT) {
-                NodeHeartbeat ros_message = message.unpack_heartbeat_message();
+                NodeHeartbeat ros_message = message.pop_heartbeat_message();
 
                 if (head.topic_id >= heartbeat_publishers.size()) {
                         RCLCPP_ERROR(this->get_logger(), "Heartbeat publisher with ID=%d out of range", head.topic_id);
@@ -262,7 +271,7 @@ void Datalink::array_received_callback(mavlink_message_t msg) {
                         this->heartbeat_publishers[head.topic_id]->publish(ros_message);
                 }
         } else if (head.msg_type == floattelem::MSG_ID_CONTROL) {
-                std::string options = message.unpack_control_message();
+                std::string options = message.pop_control_message();
 
                 if (head.topic_id >= signal_publishers.size()) {
                         RCLCPP_ERROR(this->get_logger(), "Signal publisher with ID=%d out of range", head.topic_id);

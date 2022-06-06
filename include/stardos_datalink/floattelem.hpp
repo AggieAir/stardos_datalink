@@ -30,30 +30,39 @@ namespace floattelem {
         class Message {
         public:
                 Message(float data[]);
+                Message();
 
-                Header get_header();
+                Header next_header();
+
+                bool has_next();
+                void reset();
 
                 // heartbeat
-                static Message pack_heartbeat_message(NodeHeartbeat::SharedPtr in, uint8_t topic_id);
-                NodeHeartbeat unpack_heartbeat_message();
+                bool push_heartbeat_message(NodeHeartbeat::SharedPtr in, uint8_t topic_id);
+                NodeHeartbeat pop_heartbeat_message();
 
                 // control
-                static Message pack_control_message(std::string options, uint8_t topic_id);
-                std::string unpack_control_message();
+                bool push_control_message(std::string options, uint8_t topic_id);
+                std::string pop_control_message();
 
                 float *get_data();
         private:
-                Message(Header head);
-                Message(uint8_t msg_type, uint8_t msg_length, uint8_t topic_id);
+                bool check_space(uint8_t bytes);
+                void push_header(uint8_t msg_type, uint8_t msg_length, uint8_t topic_id);
 
-                void populate_header(uint8_t msg_type, uint8_t msg_length, uint8_t topic_id);
+                void finalize(int length);
+
                 inline uint8_t * data_u8();
                 inline uint16_t * data_u16();
                 inline char * data_char();
+
+                inline int number_of_floats(int bytes);
                 static std::runtime_error wrong_id_error(uint8_t recv, uint8_t want);
                 static std::runtime_error wrong_length_error(uint8_t recv, uint8_t want);
 
                 float *data;
+                // offset of where to put things, in number of floats
+                uint8_t offset;
         };
 }
 

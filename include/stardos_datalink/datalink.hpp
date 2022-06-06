@@ -78,6 +78,8 @@ private:
         rclcpp::Publisher<Attitude>::SharedPtr attitude_publisher;
         rclcpp::Publisher<SystemTime>::SharedPtr systime_publisher;
 
+        floattelem::Message buffered_message;
+
         // Wrapper around Mavsdk::set_configuration
 	void configure();
         // Bind to the connection_url

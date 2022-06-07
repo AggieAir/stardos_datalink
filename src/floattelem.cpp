@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstring>
 #include <sstream>
 #include <stdexcept>
@@ -8,9 +9,7 @@
 namespace floattelem {
         Message::Message(float data[]) : data{data}, offset{0} {}
 
-        Message::Message() : Message(new float[58]) {
-                data_u8()[0] = 0;
-        }
+        Message::Message() : Message(new float[58] {0}) {}
 
         Header Message::next_header() {
                 uint8_t *data8 = data_u8();
@@ -23,7 +22,7 @@ namespace floattelem {
         }
 
         bool Message::has_next() {
-                return data_u8()[0] != 0;
+                return offset < 58 && data_u8()[0] != 0;
         }
 
         bool Message::is_empty() {
@@ -32,7 +31,9 @@ namespace floattelem {
 
         void Message::reset() {
                 offset = 0;
-                data_u8()[0] = 0;
+                for (int i = 0; i < 58; i++) {
+                        data[i] = 0;
+                }
         }
 
         bool Message::push_heartbeat_message(NodeHeartbeat::SharedPtr msg, uint8_t topic_id) {

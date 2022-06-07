@@ -30,10 +30,10 @@ namespace floattelem {
         }
 
         void Message::reset() {
-                offset = 0;
-                for (int i = 0; i < 58; i++) {
+                for (int i = 0; i < offset; i++) {
                         data[i] = 0;
                 }
+                offset = 0;
         }
 
         bool Message::push_heartbeat_message(NodeHeartbeat::SharedPtr msg, uint8_t topic_id) {

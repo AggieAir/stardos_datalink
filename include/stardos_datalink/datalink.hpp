@@ -51,6 +51,9 @@ private:
         // Reference to MAVLink system to send telemetry to
 	std::shared_ptr<mavsdk::System> target;
 
+        // DEBUG_FLOAT_ARRAY Array ID
+        uint16_t array_id;
+
         // These allow us to pass messages directly to the systems
 	std::shared_ptr<mavsdk::MavlinkPassthrough> autopilot_passthrough;
 	std::shared_ptr<mavsdk::MavlinkPassthrough> target_passthrough;

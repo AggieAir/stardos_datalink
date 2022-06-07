@@ -127,13 +127,15 @@ void Datalink::send() {
 
         mavlink_message_t message;
 
+        if (array_id == UINT16_MAX) array_id = 0;
+
         mavlink_msg_debug_float_array_pack(
                 target_passthrough->get_our_sysid(), // SystemID
                 target_passthrough->get_our_compid(), //My comp ID
                 &message, //Message reference
-                1, //timeing is 1 sec
+                now().nanoseconds() / 1000,
                 name.c_str(),
-                5,
+                array_id++,
                 buffered_message.get_data()
         );
 
@@ -212,8 +214,6 @@ void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
                 return;
         }
 
-        RCLCPP_INFO(this->get_logger(), "adding a heartbeat to the queue");
-        RCLCPP_INFO(this->get_logger(), "id: %d", id);
         if (!buffered_message.push_heartbeat_message(msg, id)) {
                 send();
                 buffered_message.reset();
@@ -268,17 +268,13 @@ void Datalink::control_callback(Control::SharedPtr msg) {
 }
 
 void Datalink::array_received_callback(mavlink_message_t msg) {
-        RCLCPP_INFO(this->get_logger(), "Array received");
         mavlink_debug_float_array_t * floats = new mavlink_debug_float_array_t();
         mavlink_msg_debug_float_array_decode(&msg, floats);
 
         TelemMessage message = TelemMessage(floats->data);
 
         while (message.has_next()) {
-                RCLCPP_INFO(this->get_logger(), "Message has next");
-
                 TelemHeader head = message.next_header();
-                RCLCPP_INFO(this->get_logger(), "id: %d", head.topic_id);
                 if (head.msg_type == floattelem::MSG_ID_HEARTBEAT) {
                         NodeHeartbeat ros_message = message.pop_heartbeat_message();
 

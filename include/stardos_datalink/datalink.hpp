@@ -57,6 +57,8 @@ private:
 
         // Runs every second; looks for systems
         rclcpp::TimerBase::SharedPtr get_system_timer;
+        // Runs every second; looks for systems
+        rclcpp::TimerBase::SharedPtr send_telemetry_timer;
 
         // Subscribes to notifications from the STARDOS control node
         rclcpp::Subscription<Control>::SharedPtr control_subscription;
@@ -87,7 +89,7 @@ private:
         // Setup autopilot telemetry
         void setup_autopilot_telemetry(bool activated);
         // Send a telemetry packet
-	void send(floattelem::Message msg);
+	void send();
         // Check to see if there is another system; connect if so
         void check_systems();
 

@@ -35,6 +35,7 @@ namespace floattelem {
                 Header next_header();
 
                 bool has_next();
+                bool is_empty();
                 void reset();
 
                 // heartbeat
@@ -51,6 +52,7 @@ namespace floattelem {
                 void push_header(uint8_t msg_type, uint8_t msg_length, uint8_t topic_id);
 
                 void finalize(int length);
+                void forward(int length);
 
                 inline uint8_t * data_u8();
                 inline uint16_t * data_u16();

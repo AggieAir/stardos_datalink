@@ -6,9 +6,11 @@
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 
 namespace floattelem {
-        Message::Message(float data[]) : data{data} {}
+        Message::Message(float data[]) : data{data}, offset{0} {}
 
-        Message::Message() : data{new float[58]}, offset{0} {}
+        Message::Message() : Message(new float[58]) {
+                data_u8()[0] = 0;
+        }
 
         Header Message::next_header() {
                 uint8_t *data8 = data_u8();
@@ -24,8 +26,13 @@ namespace floattelem {
                 return data_u8()[0] != 0;
         }
 
+        bool Message::is_empty() {
+                return offset == 0;
+        }
+
         void Message::reset() {
                 offset = 0;
+                data_u8()[0] = 0;
         }
 
         bool Message::push_heartbeat_message(NodeHeartbeat::SharedPtr msg, uint8_t topic_id) {
@@ -76,6 +83,8 @@ namespace floattelem {
                 ret.requests = data16[4];
                 ret.failures = data16[5];
 
+                forward(MSG_LENGTH_HEARTBEAT);
+
                 return ret;
         }
 
@@ -113,9 +122,11 @@ namespace floattelem {
 
                 char *datachar = this->data_char();
 
-                return std::string(
-                        datachar + MSG_BASE_LENGTH,
-                        head.msg_length - MSG_BASE_LENGTH);
+                std::string ret = std::string(datachar + MSG_BASE_LENGTH, head.msg_length - MSG_BASE_LENGTH);
+
+                forward(head.msg_length);
+
+                return ret;
         }
 
         float *Message::get_data() {
@@ -135,12 +146,16 @@ namespace floattelem {
         }
 
         void Message::finalize(int length) {
-                int f = number_of_floats(length);
-                this->offset += f;
+                forward(length);
 
                 if (offset < 58) {
                         this->data_u8()[0] = 0;
                 }
+        }
+
+        void Message::forward(int length) {
+                int f = number_of_floats(length);
+                this->offset += f;
         }
 
         uint8_t * Message::data_u8() {

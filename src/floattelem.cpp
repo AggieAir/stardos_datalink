@@ -26,7 +26,7 @@ namespace floattelem {
         }
 
         bool Message::is_empty() {
-                return offset == 0;
+                return offset == 0 && data_u8()[0] == 0;
         }
 
         void Message::reset() {

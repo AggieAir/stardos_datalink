@@ -158,6 +158,43 @@ FloatTelem is the name I've given to the protocol that I invented to get
 telemetry over MAVLink. It hijacks the [`DEBUG_FLOAT_ARRAY`][mavlink_dfa]
 message.
 
+### Layout of a Message
+
+In a `DEBUG_FLOAT_ARRAY` message, we have a buffer of 58 floats to deal with.
+FloatTelem uses this buffer to store pack multiple small messages. Each message
+has a three-byte header, followed by a payload.
+
+To limit bandwidth, we try to send only one `DEBUG_FLOAT_ARRAY` per second. No
+message as of this point (7 Jun 2022) exceeds 16 bytes (4 floats) and some can
+be made as short as 3 bytes (1 float), but I'd say that 3 bytes is just about
+the median. So we can fit about 20 STARDOS messages into one MAVLink message.
+
+These messages are literally just stacked end-to-end. At the next float
+boundary after one message finishes, if that byte is not `0x00`, or that byte
+is outside of the buffer, then a new message is presumed to be found there.
+
+```
+00000000: 010c 0200 0501 0000 02f3 0012 0209 0168
+00000010: 756e 7465 7232 0a00 00
+
+msg_type   01
+msg_length 0c
+topic_id   02
+unused     00
+state      0501
+errors     0000
+requests   02f3
+failures   0012
+
+msg_type   02
+msg_length 09
+topic_id   01
+options    6875 6e74 6572 320a
+unused     00
+
+done       00
+```
+
 ### Header
 
 ```
@@ -178,7 +215,11 @@ The topic ID represents which topic this should be published on. This will just
 be the index of the topic name as given in the [control
 message](#making-it-listen).
 
-### Heartbeat Message
+### Messages
+
+Here are the different types of message:
+
+#### Heartbeat Message
 
 * Message ID: 0x1
 * Message Length: 12
@@ -195,7 +236,7 @@ message](#making-it-listen).
 
 The contents of the fields here are an implemenation detail of STARDOS nodes.
 
-### Control Message
+#### Control Message
 
 * Message ID: 0x2
 * Message Length: 3-16
@@ -203,7 +244,7 @@ The contents of the fields here are an implemenation detail of STARDOS nodes.
 ```
  bits    type     field
    0-23            header
-  24- n   string   message
+  24- n   string   options
 ```
 
 The topic ID here represents which kind of message this is. The string is just

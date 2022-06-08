@@ -8,7 +8,7 @@
 int main(int argc, char *argv[]) {
         rclcpp::init(argc, argv);
         Datalink datalink = Datalink(
-                        "datalink_ground",
+                        "datalink",
                         SYS_ID_GCS,
                         COMP_ID_GCS,
                         true,

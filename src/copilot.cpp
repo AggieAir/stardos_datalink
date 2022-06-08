@@ -8,7 +8,7 @@
 int main(int argc, char *argv[]) {
         rclcpp::init(argc, argv);
         Datalink datalink = Datalink(
-                        "datalink_copilot",
+                        "datalink",
                         SYS_ID_PAYLOAD,
                         COMP_ID_COPILOT,
                         true,

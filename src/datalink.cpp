@@ -125,6 +125,8 @@ void Datalink::send() {
                 return;
         }
 
+        RCLCPP_INFO(this->get_logger(), "Sending a packet");
+
         mavlink_message_t message;
 
         if (array_id == UINT16_MAX) array_id = 0;
@@ -144,6 +146,7 @@ void Datalink::send() {
         if (result != MavlinkPassthrough::Result::Success) {
                 std::cout << "command send failed: " << result << "\n";
         } else {
+                RCLCPP_INFO(this->get_logger(), "Resetting message buffer");
                 buffered_message.reset();
         }
 }
@@ -213,6 +216,8 @@ void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
                 RCLCPP_INFO(this->get_logger(), "Tried to send a message before target system was found");
                 return;
         }
+
+        RCLCPP_INFO(this->get_logger(), "Queueing heartbeat message (offset=%d)", buffered_message.get_offset());
 
         if (!buffered_message.push_heartbeat_message(msg, id)) {
                 send();

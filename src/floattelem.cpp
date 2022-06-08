@@ -134,6 +134,10 @@ namespace floattelem {
                 return data;
         }
 
+        uint8_t Message::get_offset() {
+                return offset;
+        }
+
         bool Message::check_space(uint8_t bytes) {
                 return offset + number_of_floats(bytes) < 58;
         }

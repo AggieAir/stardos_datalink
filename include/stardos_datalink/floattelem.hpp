@@ -63,6 +63,8 @@ namespace floattelem {
 
                 // Get the floats themselves
                 float *get_data();
+                // Get the floats themselves
+                uint8_t get_offset();
         private:
                 // True if `bytes` more bytes will fit in the buffer
                 bool check_space(uint8_t bytes);

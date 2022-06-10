@@ -139,7 +139,7 @@ void Datalink::send() {
                 array_id++,
                 buffered_message.get_offset() * 4,
                 0,
-                (uint8_t*) buffered_message.get_data()
+                buffered_message.get_data()
         );
 
         MavlinkPassthrough::Result result = target_passthrough->send_message(message);

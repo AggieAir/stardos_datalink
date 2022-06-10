@@ -8,10 +8,9 @@
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 
 namespace floattelem {
-        Message::Message(float data[]) : data{data}, offset{0} {}
-        Message::Message(uint8_t data[]) : data{(float*) data}, offset{0} {}
+        Message::Message(uint8_t data[]) : data{data}, offset{0} {}
 
-        Message::Message() : Message(new float[BUFFER_SIZE] {0}) {}
+        Message::Message() : Message(new uint8_t[BUFFER_SIZE] {0}) {}
 
         Header Message::next_header() {
                 uint8_t *data8 = data_u8();
@@ -134,7 +133,7 @@ namespace floattelem {
                 return ret;
         }
 
-        float *Message::get_data() {
+        uint8_t *Message::get_data() {
                 return data;
         }
 
@@ -143,7 +142,7 @@ namespace floattelem {
         }
 
         bool Message::check_space(uint8_t bytes) {
-                return offset + number_of_floats(bytes) < BUFFER_SIZE;
+                return offset + offset_from_length(bytes) < BUFFER_SIZE;
         }
 
         void Message::push_header(uint8_t msg_type, uint8_t msg_length, uint8_t topic_id) {
@@ -159,24 +158,24 @@ namespace floattelem {
         }
 
         void Message::forward(int length) {
-                int f = number_of_floats(length);
+                int f = offset_from_length(length);
                 this->offset += f;
         }
 
         uint8_t * Message::data_u8() {
-                return (uint8_t*) data + offset * 4;
+                return (uint8_t*) data + offset;
         }
 
         uint16_t * Message::data_u16() {
-                return (uint16_t*) data + offset * 2;
+                return (uint16_t*) data + offset / 2;
         }
 
         char * Message::data_char() {
-                return (char*) data + offset * 4;
+                return (char*) data + offset;
         }
 
-        size_t Message::number_of_floats(size_t bytes) {
-                return (bytes-1) / sizeof(float) + 1;
+        size_t Message::offset_from_length(size_t bytes) {
+                return 4 * ((bytes-1) / sizeof(float) + 1);
         }
 
         std::runtime_error Message::wrong_id_error(uint8_t recv, uint8_t want) {

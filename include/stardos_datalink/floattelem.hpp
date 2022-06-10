@@ -13,6 +13,7 @@
 using stardos_interfaces::msg::NodeHeartbeat;
 
 namespace floattelem {
+        constexpr size_t BUFFER_SIZE = 62;
         constexpr uint8_t MSG_BASE_LENGTH = 3;
 
         constexpr uint8_t MSG_ID_HEARTBEAT = 0x1;
@@ -31,7 +32,12 @@ namespace floattelem {
         public:
                 // Construct a message using an existing float array
                 // This usually means you're on the receiving end and are looking to decode
+                // and that you're using DEBUG_FLOAT_ARRAY
                 Message(float data[]);
+                // Construct a message using an existing octet array
+                // This usually means you're on the receiving end and are looking to decode
+                // and that you're using LOGGING_DATA
+                Message(uint8_t data[]);
                 // Construct a message with all zeroes
                 // The zeroes are important. If you don't have them, you'll end up inflating
                 // your message size with irrelevant data
@@ -84,7 +90,7 @@ namespace floattelem {
                 inline char * data_char();
 
                 // The number of floats reqired to hold a number of bytes equal to `bytes`
-                inline int number_of_floats(int bytes);
+                inline size_t number_of_floats(size_t bytes);
                 // Get a runtime error for if the next message has an unexpected ID
                 static std::runtime_error wrong_id_error(uint8_t recv, uint8_t want);
                 // Get a runtime error for if the next message has an unexpected length

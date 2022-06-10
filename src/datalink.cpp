@@ -43,6 +43,7 @@ Datalink::Datalink(
         bool autopilot_telemetry
 ) : Node(name),
         name{name},
+        array_id{0},
         heartbeat_subscriptions{std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr>()},
         signal_subscriptions{std::vector<rclcpp::Subscription<Control>::SharedPtr>()},
         heartbeat_publishers{std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr>()},
@@ -125,20 +126,20 @@ void Datalink::send() {
                 return;
         }
 
-        RCLCPP_INFO(this->get_logger(), "Sending a packet");
-
         mavlink_message_t message;
 
         if (array_id == UINT16_MAX) array_id = 0;
 
-        mavlink_msg_debug_float_array_pack(
+        mavlink_msg_logging_data_pack(
                 target_passthrough->get_our_sysid(), // SystemID
                 target_passthrough->get_our_compid(), //My comp ID
                 &message, //Message reference
-                now().nanoseconds() / 1000,
-                name.c_str(),
+                this->get_parameter("targetsysid").as_int(),
+                this->get_parameter("targetcompid").as_int(),
                 array_id++,
-                buffered_message.get_data()
+                buffered_message.get_offset() * 4,
+                0,
+                (uint8_t*) buffered_message.get_data()
         );
 
         MavlinkPassthrough::Result result = target_passthrough->send_message(message);
@@ -165,7 +166,7 @@ void Datalink::check_systems() {
                         target_passthrough = std::make_shared<MavlinkPassthrough>(target);
 
                         target_passthrough->subscribe_message_async(
-                                        MAVLINK_MSG_ID_DEBUG_FLOAT_ARRAY, 
+                                        MAVLINK_MSG_ID_LOGGING_DATA,
                                         std::bind(&Datalink::array_received_callback, this, _1));
 
                         send_telemetry_timer = this->create_wall_timer(
@@ -273,15 +274,25 @@ void Datalink::control_callback(Control::SharedPtr msg) {
 }
 
 void Datalink::array_received_callback(mavlink_message_t msg) {
-        mavlink_debug_float_array_t * floats = new mavlink_debug_float_array_t();
-        mavlink_msg_debug_float_array_decode(&msg, floats);
+        mavlink_logging_data_t * inner = new mavlink_logging_data_t();
+        mavlink_msg_logging_data_decode(&msg, inner);
 
-        TelemMessage message = TelemMessage(floats->data);
+        if (
+                        msg.sysid != this->get_parameter("targetsysid").as_int() ||
+                        msg.compid != this->get_parameter("targetcompid").as_int() ||
+                        inner->target_system != this->get_parameter("sysid").as_int() ||
+                        inner->target_component != this->get_parameter("compid").as_int()
+        ) {
+                return;
+        }
+
+        TelemMessage message = TelemMessage(inner->data);
 
         while (message.has_next()) {
                 TelemHeader head = message.next_header();
                 if (head.msg_type == floattelem::MSG_ID_HEARTBEAT) {
                         NodeHeartbeat ros_message = message.pop_heartbeat_message();
+                        RCLCPP_INFO(this->get_logger(), "Offset now=%d", buffered_message.get_offset());
 
                         if (head.topic_id >= heartbeat_publishers.size()) {
                                 RCLCPP_ERROR(

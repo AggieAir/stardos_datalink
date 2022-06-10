@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstring>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <stdint.h>
@@ -8,8 +9,9 @@
 
 namespace floattelem {
         Message::Message(float data[]) : data{data}, offset{0} {}
+        Message::Message(uint8_t data[]) : data{(float*) data}, offset{0} {}
 
-        Message::Message() : Message(new float[58] {0}) {}
+        Message::Message() : Message(new float[BUFFER_SIZE] {0}) {}
 
         Header Message::next_header() {
                 uint8_t *data8 = data_u8();
@@ -22,7 +24,7 @@ namespace floattelem {
         }
 
         bool Message::has_next() {
-                return offset < 58 && data_u8()[0] != 0;
+                return offset < BUFFER_SIZE && data_u8()[0] != 0;
         }
 
         bool Message::is_empty() {
@@ -86,6 +88,8 @@ namespace floattelem {
 
                 forward(MSG_LENGTH_HEARTBEAT);
 
+                std::cout << "Popped message, offset=" << (int) offset << "\n";
+
                 return ret;
         }
 
@@ -139,7 +143,7 @@ namespace floattelem {
         }
 
         bool Message::check_space(uint8_t bytes) {
-                return offset + number_of_floats(bytes) < 58;
+                return offset + number_of_floats(bytes) < BUFFER_SIZE;
         }
 
         void Message::push_header(uint8_t msg_type, uint8_t msg_length, uint8_t topic_id) {
@@ -152,10 +156,6 @@ namespace floattelem {
 
         void Message::finalize(int length) {
                 forward(length);
-
-                if (offset < 58) {
-                        this->data_u8()[0] = 0;
-                }
         }
 
         void Message::forward(int length) {
@@ -175,7 +175,7 @@ namespace floattelem {
                 return (char*) data + offset * 4;
         }
 
-        int Message::number_of_floats(int bytes) {
+        size_t Message::number_of_floats(size_t bytes) {
                 return (bytes-1) / sizeof(float) + 1;
         }
 

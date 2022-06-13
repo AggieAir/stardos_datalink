@@ -18,15 +18,16 @@
 #include "stardos_interfaces/msg/global_position.hpp"
 #include "stardos_interfaces/msg/gps_position.hpp"
 #include "stardos_interfaces/msg/attitude.hpp"
+#include "stardos_interfaces/msg/altitude.hpp"
 #include "stardos_interfaces/msg/system_time.hpp"
 
 #include "floattelem.hpp"
 
 using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::Control;
-using stardos_interfaces::msg::GlobalPosition;
 using stardos_interfaces::msg::GPSPosition;
 using stardos_interfaces::msg::Attitude;
+using stardos_interfaces::msg::Altitude;
 using stardos_interfaces::msg::SystemTime;
 
 class Datalink: public rclcpp::Node
@@ -83,7 +84,7 @@ private:
         // Publishers for MAVLink data received from the autopilot
         rclcpp::Publisher<GPSPosition>::SharedPtr gps_raw_publisher;
         rclcpp::Publisher<GPSPosition>::SharedPtr gps_position_publisher;
-        rclcpp::Publisher<GlobalPosition>::SharedPtr global_position_publisher;
+        rclcpp::Publisher<Altitude>::SharedPtr altitude_publisher;
         rclcpp::Publisher<Attitude>::SharedPtr attitude_publisher;
         rclcpp::Publisher<SystemTime>::SharedPtr systime_publisher;
 
@@ -120,7 +121,7 @@ private:
         // These all process particular mavlink message types
         // There's not much to see, tbh
         void gps_raw_received_callback(mavlink_message_t msg);
-        void global_position_received_callback(mavlink_message_t msg);
+        void altitude_received_callback(mavlink_message_t msg);
         void attitude_received_callback(mavlink_message_t msg);
         void systime_received_callback(mavlink_message_t msg);
 

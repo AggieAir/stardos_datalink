@@ -9,9 +9,9 @@
 #include <jsoncpp/json/value.h>
 
 #include "rclcpp/rclcpp.hpp"
-#include "stardos_interfaces/msg/node_heartbeat.hpp"
 #include "stardos_interfaces/msg/control.hpp"
 #include "stardos_interfaces/msg/gps_position.hpp"
+#include "stardos_interfaces/msg/altitude.hpp"
 #include "stardos_interfaces/msg/attitude.hpp"
 #include "stardos_interfaces/msg/system_time.hpp"
 
@@ -110,7 +110,7 @@ void Datalink::setup_autopilot_telemetry(bool activate) {
 
                 gps_raw_publisher = this->create_publisher<GPSPosition>("gps_raw", 10);
                 gps_position_publisher = this->create_publisher<GPSPosition>("gps_position", 10);
-                global_position_publisher = this->create_publisher<GlobalPosition>("global_position", 10);
+                altitude_publisher = this->create_publisher<Altitude>("altitude", 10);
                 attitude_publisher = this->create_publisher<Attitude>("attitude", 10);
                 systime_publisher = this->create_publisher<SystemTime>("system_time", 10);
                 if (get_system_timer != nullptr && get_system_timer->is_canceled()) {
@@ -119,7 +119,7 @@ void Datalink::setup_autopilot_telemetry(bool activate) {
         } else {
                 gps_raw_publisher = nullptr;
                 gps_position_publisher = nullptr;
-                global_position_publisher = nullptr;
+                altitude_publisher = nullptr;
                 attitude_publisher = nullptr;
                 systime_publisher = nullptr;
         }
@@ -201,7 +201,7 @@ void Datalink::check_systems() {
 
                         autopilot_passthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_GLOBAL_POSITION_INT,
-                                        std::bind(&Datalink::global_position_received_callback, this, _1));
+                                        std::bind(&Datalink::altitude_received_callback, this, _1));
 
                         autopilot_passthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_ATTITUDE,
@@ -364,23 +364,21 @@ void Datalink::gps_raw_received_callback(mavlink_message_t msg) {
         gps_position_publisher->publish(ros_message);
 }
 
-void Datalink::global_position_received_callback(mavlink_message_t msg) {
-        mavlink_global_position_int_t *gps = new mavlink_global_position_int_t();
-        mavlink_msg_global_position_int_decode(&msg, gps);
+void Datalink::altitude_received_callback(mavlink_message_t msg) {
+        mavlink_altitude_t *alt = new mavlink_altitude_t();
+        mavlink_msg_altitude_decode(&msg, alt);
 
-        GlobalPosition ros_message;
+        Altitude ros_message;
 
-        ros_message.time_boot_ms = gps->time_boot_ms;
-        ros_message.lat = gps->lat;
-        ros_message.lon = gps->lon;
-        ros_message.alt = gps->alt;
-        ros_message.relative_alt = gps->relative_alt;
-        ros_message.vx = gps->vx;
-        ros_message.vy = gps->vy;
-        ros_message.vz = gps->vz;
-        ros_message.hdg = gps->hdg;
+        ros_message.time_usec = alt->time_usec;
+        ros_message.altitude_monotonic = alt->altitude_monotonic;
+        ros_message.altitude_amsl = alt->altitude_amsl;
+        ros_message.altitude_local = alt->altitude_local;
+        ros_message.altitude_relative = alt->altitude_relative;
+        ros_message.altitude_terrain = alt->altitude_terrain;
+        ros_message.bottom_clearance = alt->bottom_clearance;
 
-        global_position_publisher->publish(ros_message);
+        altitude_publisher->publish(ros_message);
 }
 
 void Datalink::attitude_received_callback(mavlink_message_t msg) {

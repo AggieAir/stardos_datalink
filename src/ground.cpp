@@ -15,7 +15,8 @@ int main(int argc, char *argv[]) {
                         "udp://127.0.0.1:11002",
                         SYS_ID_PAYLOAD,
                         COMP_ID_COPILOT,
-                        false);
+                        false,
+                        true);
         rclcpp::spin(std::shared_ptr<Datalink>(&datalink));
         rclcpp::shutdown();
         return 0;

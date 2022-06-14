@@ -17,6 +17,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(stardos_interfaces REQUIRED)
 find_package(MAVSDK REQUIRED)
+find_package(jsoncpp REQUIRED)
 
 add_executable(datalink_ground src/ground.cpp)
 ament_target_dependencies(datalink_ground rclcpp stardos_interfaces MAVSDK)
@@ -35,11 +36,13 @@ include_directories(include/stardos_datalink)
 target_link_libraries(datalink_ground
 	datalink
         floattelem
+	jsoncpp_lib
 	MAVSDK::mavsdk)
 
 target_link_libraries(datalink_copilot
 	datalink
         floattelem
+	jsoncpp_lib
 	MAVSDK::mavsdk)
 
 install(TARGETS

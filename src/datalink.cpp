@@ -7,6 +7,7 @@
 
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
+#include <utility>
 
 #include "rclcpp/rclcpp.hpp"
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
@@ -40,7 +41,8 @@ Datalink::Datalink(
         std::string connection_url,
         uint8_t targetsysid,
         uint8_t targetcompid,
-        bool autopilot_telemetry
+        bool autopilot_telemetry,
+        bool starcommand
 ) : Node(name),
         name{name},
         array_id{0},
@@ -68,7 +70,11 @@ Datalink::Datalink(
         // where to forge a connection to
         this->declare_parameter<std::string>("connection_url", connection_url, ro);
 
+        // should we subscribe to telemetry from the autopilot
         this->declare_parameter<bool>("autopilot_telemetry", autopilot_telemetry, ro);
+
+        // should we publish extra info for StarCommand's benefit?
+        this->declare_parameter<bool>("starcommand", starcommand, ro);
 
 	configure();
 	connect();
@@ -123,6 +129,14 @@ void Datalink::setup_autopilot_telemetry(bool activate) {
                 attitude_publisher = nullptr;
                 systime_publisher = nullptr;
         }
+}
+
+void Datalink::setup_starcommand(std::string downlink_topic, std::string uplink_topic) {
+        starcommand_publisher = this->create_publisher<StarCommandDownlink>(downlink_topic, 10);
+        starcommand_subscription = this->create_subscription<StarCommandUplink>(
+                        uplink_topic,
+                        10,
+                        std::bind(&Datalink::uplink_callback, this, _1));
 }
 
 void Datalink::send() {
@@ -258,7 +272,10 @@ void Datalink::control_callback(Control::SharedPtr msg) {
         Json::Reader reader;
 
         RCLCPP_INFO(this->get_logger(), "Parsing JSON");
-        reader.parse(msg->options, root);
+        if (!reader.parse(msg->options, root)) {
+                RCLCPP_ERROR(this->get_logger(), "Invalid JSON");
+                return;
+        }
 
         heartbeat_subscriptions.clear();
 
@@ -266,19 +283,71 @@ void Datalink::control_callback(Control::SharedPtr msg) {
         this->fill_subscriber_list<NodeHeartbeat>(
                 root["heartbeat"]["sub"],
                 &this->heartbeat_subscriptions,
+                &this->heartbeat_subscription_ids,
                 std::bind(&Datalink::heartbeat_callback, this, _1, _2));
 
         RCLCPP_INFO(this->get_logger(), "Creating heartbeat publishers");
-        this->fill_publisher_list<NodeHeartbeat>(root["heartbeat"]["pub"], &this->heartbeat_publishers);
+        this->fill_publisher_list<NodeHeartbeat>(
+                root["heartbeat"]["pub"],
+                &this->heartbeat_publishers,
+                &this->heartbeat_publisher_ids);
 
         RCLCPP_INFO(this->get_logger(), "Creating control message subscribers");
         this->fill_subscriber_list<Control>(
                 root["control"]["sub"],
                 &this->signal_subscriptions,
+                &this->control_subscription_ids,
                 std::bind(&Datalink::signal_callback, this, _1, _2));
 
         RCLCPP_INFO(this->get_logger(), "Creating control message publishers");
-        this->fill_publisher_list<Control>(root["control"]["pub"], &this->signal_publishers);
+        this->fill_publisher_list<Control>(
+                root["control"]["pub"],
+                &this->signal_publishers,
+                &this->control_publisher_ids
+        );
+
+        if (this->get_parameter("starcommand").as_bool()) {
+                RCLCPP_INFO(this->get_logger(), "Setting up StarCommand pub/sub");
+                setup_starcommand(
+                        root["starcommand"]["downlink"].asString(),
+                        root["starcommand"]["uplink"].asString()
+                );
+        }
+}
+
+void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
+        RCLCPP_INFO(this->get_logger(), "Got data from StarCommand");
+        Json::Value root;
+        Json::Reader reader;
+
+        RCLCPP_INFO(this->get_logger(), "Deserializing");
+        if (!reader.parse(msg->payload, root)) {
+                RCLCPP_ERROR(this->get_logger(), "Invalid JSON");
+                return;
+        }
+
+        if (msg->type == "node") {
+                NodeHeartbeat hb;
+
+                hb.state = root["state"].asInt();
+                hb.requests = root["requests"].asInt();
+                hb.failures = root["failures"].asInt();
+                hb.errors = root["errors"].asInt();
+
+                this->heartbeat_callback(
+                        heartbeat_subscription_ids.at(msg->destination),
+                        std::shared_ptr<NodeHeartbeat>(&hb)
+                );
+        } else if (msg->type == "control") {
+                Control ctrl;
+
+                ctrl.options = root["options"].asInt();
+
+                this->signal_callback(
+                        control_subscription_ids.at(msg->destination),
+                        std::shared_ptr<Control>(&ctrl)
+                );
+        }
 }
 
 void Datalink::array_received_callback(mavlink_message_t msg) {
@@ -300,16 +369,37 @@ void Datalink::array_received_callback(mavlink_message_t msg) {
                 TelemHeader head = message.next_header();
                 if (head.msg_type == floattelem::MSG_ID_HEARTBEAT) {
                         NodeHeartbeat ros_message = message.pop_heartbeat_message();
-                        RCLCPP_INFO(this->get_logger(), "Offset now=%d", buffered_message.get_offset());
 
                         if (head.topic_id >= heartbeat_publishers.size()) {
                                 RCLCPP_ERROR(
                                         this->get_logger(),
                                         "Heartbeat publisher with ID=%d out of range",
-                                        head.topic_id);
-                        } else {
-                                this->heartbeat_publishers[head.topic_id]->publish(ros_message);
+                                        head.topic_id
+                                );
+                                continue;
                         }
+
+                        this->heartbeat_publishers[head.topic_id]->publish(ros_message);
+
+                        if (!this->get_parameter("starcommand").as_bool()) continue;
+
+                        StarCommandDownlink down;
+
+                        Json::Value v(Json::objectValue);
+
+                        v["state"] = Json::Value(ros_message.state);
+                        v["requests"] = Json::Value(ros_message.requests);
+                        v["failures"] = Json::Value(ros_message.failures);
+                        v["errors"] = Json::Value(ros_message.errors);
+
+                        std::ostringstream json_out;
+                        json_out << Json::StreamWriterBuilder().newStreamWriter();
+
+                        down.type = "node";
+                        down.payload = json_out.str();
+                        down.origin = heartbeat_publishers[head.topic_id]->get_topic_name();
+
+                        starcommand_publisher->publish(down);
                 } else if (head.msg_type == floattelem::MSG_ID_CONTROL) {
                         std::string options = message.pop_control_message();
 
@@ -317,12 +407,32 @@ void Datalink::array_received_callback(mavlink_message_t msg) {
                                 RCLCPP_ERROR(
                                         this->get_logger(),
                                         "Signal publisher with ID=%d out of range",
-                                        head.topic_id);
-                        } else {
-                                Control c;
-                                c.options = options;
-                                this->signal_publishers[head.topic_id]->publish(c);
+                                        head.topic_id
+                                );
+                                continue;
                         }
+
+                        Control c;
+                        c.options = options;
+
+                        this->signal_publishers[head.topic_id]->publish(c);
+
+                        if (!this->get_parameter("starcommand").as_bool()) continue;
+
+                        StarCommandDownlink down;
+
+                        Json::Value v(Json::objectValue);
+
+                        v["options"] = Json::Value(options);
+
+                        std::ostringstream json_out;
+                        json_out << Json::StreamWriterBuilder().newStreamWriter();
+
+                        down.type = "node";
+                        down.payload = json_out.str();
+                        down.origin = signal_publishers[head.topic_id]->get_topic_name();
+
+                        starcommand_publisher->publish(down);
                 } else {
                         RCLCPP_ERROR(
                                 this->get_logger(),
@@ -413,28 +523,50 @@ void Datalink::systime_received_callback(mavlink_message_t msg) {
 }
 
 template<typename T>
-void Datalink::fill_subscriber_list(Json::Value& topics, std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest, std::function<void(int, std::shared_ptr<T>)> callback) {
+void Datalink::fill_subscriber_list(
+                Json::Value& topics,
+                std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest,
+                std::map<std::string, uint8_t> *mapping,
+                std::function<void(int, std::shared_ptr<T>)> callback
+) {
         int id = 0;
         for (auto v = topics.begin(); v != topics.end(); v++) {
                 std::string topic = v->asString();
 
                 dest->push_back(
-                    this->create_subscription<T>(
-                        topic, 10,
-                        [this, id, callback] (std::shared_ptr<T> msg) {
-                                callback(id, msg);
-                        }));
+                        this->create_subscription<T>(
+                                topic,
+                                10,
+                                [this, id, callback] (std::shared_ptr<T> msg) {
+                                        callback(id, msg);
+                                }
+                        )
+                );
+                
+                mapping->insert(std::make_pair(topic, id));
+
                 id++;
         }
 }
 
 template<typename T>
-void Datalink::fill_publisher_list(Json::Value& topics, std::vector<typename rclcpp::Publisher<T>::SharedPtr> *dest) {
+void Datalink::fill_publisher_list(
+                Json::Value& topics,
+                std::vector<typename rclcpp::Publisher<T>::SharedPtr> *dest,
+                std::map<std::string, uint8_t> *mapping
+) {
+        int id = 0;
         for (auto v = topics.begin(); v != topics.end(); v++) {
                 std::string topic = v->asString();
                 dest->push_back(
                         this->create_publisher<T>(
                                 topic,
-                                10));
+                                10
+                        )
+                );
+                
+                mapping->insert(std::make_pair(topic, id));
+                
+                id++;
         }
 }

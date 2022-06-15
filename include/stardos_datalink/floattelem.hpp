@@ -6,11 +6,13 @@
 #include <stdint.h>
 
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
-#include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/common/mavlink_msg_debug_float_array.h>
+#include <vector>
 
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
+#include "stardos_interfaces/msg/system_status.hpp"
 
 using stardos_interfaces::msg::NodeHeartbeat;
+using stardos_interfaces::msg::SystemStatus;
 
 namespace floattelem {
         constexpr size_t BUFFER_SIZE = 249;
@@ -22,11 +24,23 @@ namespace floattelem {
         constexpr uint8_t MSG_ID_CONTROL = 0x2;
         constexpr uint8_t MAX_STRING_LENGTH = 13;
 
+        constexpr uint8_t MSG_ID_SYSTEM_STATUS = 0x3;
+        constexpr uint8_t MSG_SYSTEM_STATUS_STATIC_LENGTH = 12;
+
         typedef struct {
                 uint8_t msg_type;
                 uint8_t msg_length;
                 uint8_t topic_id;
         } Header;
+
+        typedef struct {
+                std::vector<uint8_t> cpu_usage;
+                uint16_t memory;
+                uint16_t swap;
+                std::vector<uint16_t> disks;
+                std::vector<uint8_t> mounts;
+                uint32_t uptime;
+        } SlimSystemStatus;
 
         class Message {
         public:
@@ -62,6 +76,10 @@ namespace floattelem {
                 bool push_control_message(std::string options, uint8_t topic_id);
                 std::string pop_control_message();
 
+                // system_status
+                bool push_system_status_message(SlimSystemStatus *in, uint8_t topic_id);
+                SlimSystemStatus pop_system_status_message();
+
                 // Get the floats themselves
                 uint8_t *get_data();
                 // Get the floats themselves
@@ -81,6 +99,8 @@ namespace floattelem {
                 inline uint8_t * data_u8();
                 // Get the data as a sequence of 116 unsigned 16-bit integers
                 inline uint16_t * data_u16();
+                // Get the data as a sequence of 116 unsigned 16-bit integers
+                inline uint32_t * data_u32();
                 // Get the data as a sequence of 232 chars
                 inline char * data_char();
 

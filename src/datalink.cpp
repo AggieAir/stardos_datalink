@@ -9,12 +9,18 @@
 #include <jsoncpp/json/value.h>
 #include <utility>
 
+#include "rclcpp/publisher.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp/timer.hpp"
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 #include "stardos_interfaces/msg/control.hpp"
+#include "stardos_interfaces/msg/global_position.hpp"
 #include "stardos_interfaces/msg/gps_position.hpp"
 #include "stardos_interfaces/msg/attitude.hpp"
 #include "stardos_interfaces/msg/system_time.hpp"
+#include "stardos_interfaces/msg/system_status.hpp"
+#include "stardos_interfaces/msg/star_command_downlink.hpp"
+#include "stardos_interfaces/msg/star_command_uplink.hpp"
 
 #include "datalink.hpp"
 #include "floattelem.hpp"
@@ -26,9 +32,13 @@ using namespace std::placeholders;
 using rcl_interfaces::msg::ParameterDescriptor;
 using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::Control;
+using stardos_interfaces::msg::GlobalPosition;
 using stardos_interfaces::msg::GPSPosition;
 using stardos_interfaces::msg::Attitude;
 using stardos_interfaces::msg::SystemTime;
+using stardos_interfaces::msg::SystemStatus;
+using stardos_interfaces::msg::StarCommandDownlink;
+using stardos_interfaces::msg::StarCommandUplink;
 
 typedef floattelem::Message TelemMessage;
 typedef floattelem::Header TelemHeader;

@@ -43,8 +43,8 @@ namespace floattelem {
                  * 24:31      3         unused
                  * 32:47   4- 5      2  state
                  * 48:63   6- 7      3  errors
-                 * 64:79   8-11      4  requests
-                 * 80:95  10-13      5  failures
+                 * 64:79   8- 9      4  requests
+                 * 80:95  10-11      5  failures
                  */
 
                 if (!check_space(MSG_LENGTH_HEARTBEAT)) {
@@ -133,6 +133,108 @@ namespace floattelem {
                 return ret;
         }
 
+        bool Message::push_system_status_message(SlimSystemStatus *msg, uint8_t topic_id) {
+                /*  bits  bytes  hword   word
+                 *  0:23   0- 2   0         0  header
+                 * 24:31      3    - 1         cpu_count
+                 * 32:47   4- 5      2      1  memory
+                 * 48:63   6- 7      3         swap
+                 * 64:95   8-11   4- 5      2  uptime
+                 * 96: a  12- a   6- a      3  disks
+                 *  a: b   a- b   a- b      a  cpu_usage
+                 *  a: b   a- b   a- b      a  mounts
+                 */
+
+                // There will always be 12 bytes comprising the statically-sized portion.
+                // Add one byte for each cpu_usage flag
+                // Add three for each mount point (1 each for mounts and 2 each for disks)
+                int length = MSG_SYSTEM_STATUS_STATIC_LENGTH + msg->cpu_usage.size() + 3 * msg->mounts.size();
+
+                if (!check_space(MSG_LENGTH_HEARTBEAT)) {
+                        return false;
+                }
+
+                this->push_header(MSG_ID_HEARTBEAT, MSG_LENGTH_HEARTBEAT, msg->cpu_usage.size());
+
+                uint8_t *data8 = data_u8();
+                uint16_t *data16 = data_u16();
+                uint32_t *data32 = data_u32();
+
+                data8[3] = msg->mounts.size();
+
+                data16[2] = msg->memory;
+                data16[3] = msg->swap;
+
+                data32[2] = msg->uptime;
+
+                int localoffset = MSG_SYSTEM_STATUS_STATIC_LENGTH; // IN BYTES!!!
+
+                for (auto v = msg->disks.begin(); v != msg->disks.end(); v++) {
+                        data16[localoffset / 2] = *v;
+                        localoffset += 2;
+                }
+
+                for (auto v = msg->cpu_usage.begin(); v != msg->cpu_usage.end(); v++) {
+                        data8[localoffset] = *v;
+                        localoffset++;
+                }
+
+                for (auto v = msg->mounts.begin(); v != msg->mounts.end(); v++) {
+                        data8[localoffset] = *v;
+                        localoffset++;
+                }
+
+                finalize(localoffset);
+
+                return true;
+        }
+
+        SlimSystemStatus Message::pop_system_status_message() {
+                Header head = next_header();
+
+                if (head.msg_type != MSG_ID_HEARTBEAT) {
+                        throw  wrong_id_error(head.msg_type, MSG_ID_HEARTBEAT);
+                }
+                
+                if (head.msg_length < MSG_SYSTEM_STATUS_STATIC_LENGTH) {
+                        throw wrong_length_error(head.msg_length, MSG_LENGTH_HEARTBEAT);
+                }
+
+                uint8_t *data8 = data_u8();
+                uint16_t *data16 = data_u16();
+                uint32_t *data32 = data_u32();
+
+                SlimSystemStatus ret;
+
+                ret.memory = data16[2];
+                ret.swap   = data16[3];
+                ret.uptime = data32[2];
+
+                uint8_t cpu_count = head.topic_id;
+                uint8_t disk_count = data8[3];
+
+                int localoffset = MSG_SYSTEM_STATUS_STATIC_LENGTH;
+
+                for (int i = 0; i < disk_count; i++) {
+                        ret.disks.push_back(data16[localoffset / 2]);
+                        localoffset += 2;
+                }
+
+                for (int i = 0; i < cpu_count; i++) {
+                        ret.cpu_usage.push_back(data8[localoffset]);
+                        localoffset++;
+                }
+
+                for (int i = 0; i < disk_count; i++) {
+                        ret.mounts.push_back(data8[localoffset]);
+                        localoffset++;
+                }
+
+                forward(localoffset);
+
+                return ret;
+        }
+
         uint8_t *Message::get_data() {
                 return data;
         }
@@ -168,6 +270,10 @@ namespace floattelem {
 
         uint16_t * Message::data_u16() {
                 return (uint16_t*) data + offset / 2;
+        }
+
+        uint32_t * Message::data_u32() {
+                return (uint32_t*) data + offset / 4;
         }
 
         char * Message::data_char() {

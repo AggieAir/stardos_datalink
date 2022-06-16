@@ -191,8 +191,12 @@ void Datalink::load_system_statuses() {
         }
 }
 
-void Datalink::send() {
-        if (buffered_message.is_empty()) {
+void Datalink::send_buffered_message() {
+        send_telemetry(buffered_message);
+}
+
+void Datalink::send_telemetry(TelemMessage &msg) {
+        if (msg.is_empty()) {
                 return;
         }
 
@@ -207,9 +211,9 @@ void Datalink::send() {
                 this->get_parameter("targetsysid").as_int(),
                 this->get_parameter("targetcompid").as_int(),
                 array_id++,
-                buffered_message.get_offset() * 4,
+                msg.get_offset() * 4,
                 0,
-                buffered_message.get_data()
+                msg.get_data()
         );
 
         MavlinkPassthrough::Result result = target_passthrough->send_message(message);
@@ -218,7 +222,7 @@ void Datalink::send() {
                 std::cout << "command send failed: " << result << "\n";
         } else {
                 RCLCPP_INFO(this->get_logger(), "Resetting message buffer");
-                buffered_message.reset();
+                msg.reset();
         }
 }
 
@@ -241,7 +245,7 @@ void Datalink::check_systems() {
 
                         send_telemetry_timer = this->create_wall_timer(
                                         1000ms,
-                                        std::bind(&Datalink::send, this));
+                                        std::bind(&Datalink::send_buffered_message, this));
                 }
 
                 if (s->get_system_id() == 1 &&
@@ -295,7 +299,7 @@ void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
         RCLCPP_INFO(this->get_logger(), "Queueing heartbeat message (offset=%d)", buffered_message.get_offset());
 
         if (!buffered_message.push_heartbeat_message(msg, id)) {
-                send();
+                send_buffered_message();
                 buffered_message.reset();
                 buffered_message.push_heartbeat_message(msg, id);
         }
@@ -312,7 +316,7 @@ void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
         }
 
         if (!buffered_message.push_control_message(ctrl->options, id)) {
-                send();
+                send_buffered_message();
                 buffered_message.reset();
                 buffered_message.push_control_message(ctrl->options, id);
         }
@@ -352,13 +356,16 @@ void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
                 status.disks.push_back((uint16_t) ((float) *v / (float) *(v+1) * USHRT_MAX));
         }
 
-        for (auto v = msg->mounts.begin(); v != msg->mounts.end(); v += 2) {
+        for (auto v = msg->mounts.begin(); v != msg->mounts.end(); v++) {
                 auto m = mountpoints.find(*v);
                 if (m == mountpoints.end()) {
+                        RCLCPP_ERROR(this->get_logger(), "%s is not a recognized mountpoint", m->first.c_str());
                         status.disks.push_back(255);
                 }
                 status.disks.push_back(m->second);
         }
+
+        tmsg.push_system_status_message(&status, id);
 }
 
 void Datalink::control_callback(Control::SharedPtr msg) {

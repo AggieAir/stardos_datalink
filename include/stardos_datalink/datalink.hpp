@@ -130,7 +130,9 @@ private:
         // Load the properties of each system and the status messages they publish
         void load_system_statuses();
         // Send a telemetry packet
-	void send();
+	inline void send_buffered_message();
+        // Send a telemetry packet
+	void send_telemetry(floattelem::Message &msg);
         // Check to see if there is another system; connect if so
         void check_systems();
 

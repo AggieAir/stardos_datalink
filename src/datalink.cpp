@@ -1,9 +1,11 @@
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <chrono>
 #include <string.h>
 #include <math.h>
 #include <string>
+#include <climits>
 
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
@@ -111,6 +113,8 @@ Datalink::Datalink(
 
         setup_autopilot_telemetry(this->get_parameter("autopilot_telemetry").as_bool());
 
+        load_system_statuses();
+
         RCLCPP_INFO(this->get_logger(), "Binding timer callback");
 
         // Yes, the callback to check for the target system is just on a timer.
@@ -160,6 +164,31 @@ void Datalink::setup_starcommand(std::string downlink_topic, std::string uplink_
                         uplink_topic,
                         10,
                         std::bind(&Datalink::uplink_callback, this, _1));
+}
+
+void Datalink::load_system_statuses() {
+        std::ifstream file("systems.json");
+        Json::Value root;
+
+        file >> root;
+
+        for (auto v = root.begin(); v != root.end(); v++) {
+                uint8_t     id    = (*v)["id"].asInt();
+                std::string name  = (*v)["name"].asString();
+                std::string topic = (*v)["topic"].asString();
+
+                if (this->get_parameter("publish_system_status").as_bool()) {
+                        system_status_publishers[id] = this->create_publisher<SystemStatus>(topic, 10);
+                } else {
+                        system_status_subscriptions[id] = this->create_subscription<SystemStatus>(
+                                topic,
+                                10,
+                                [this, id] (SystemStatus::SharedPtr msg) {
+                                        this->system_status_callback(id, msg);
+                                }
+                        );
+                }
+        }
 }
 
 void Datalink::send() {
@@ -289,6 +318,49 @@ void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
         }
 }
 
+void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
+        floattelem::SystemCapacity sc = {
+                .max_memory_mb = msg->memory[1],
+                .max_swap_mb = msg->swap[1],
+        };
+
+        for (auto v = msg->disks.begin(); v != msg->disks.end(); v += 2) {
+                sc.disks_size_mb.push_back(*v);
+        }
+
+        auto inserted = cached_systems.insert(std::make_pair(id, sc)); // pair<pair<key, value>, bool>
+        auto entry = inserted.first; // pair<key, value>
+        bool success = inserted.second; // bool
+        floattelem::SystemCapacity *cap = &entry->second;
+
+        TelemMessage tmsg;
+        if (!success) {
+                if (*cap != sc) {
+                        tmsg.push_system_capacity_message(&sc, id);
+                        std::swap(sc, *cap);
+                }
+        }
+
+        floattelem::SlimSystemStatus status = {
+                .cpu_usage = msg->cpu_usage,
+                .memory = (uint16_t) ((float) msg->memory[0] / (float) msg->memory[1] * USHRT_MAX),
+                .swap = (uint16_t) ((float) msg->swap[0] / (float) msg->swap[1] * USHRT_MAX),
+                .uptime = msg->uptime
+        };
+
+        for (auto v = msg->disks.begin(); v != msg->disks.end(); v += 2) {
+                status.disks.push_back((uint16_t) ((float) *v / (float) *(v+1) * USHRT_MAX));
+        }
+
+        for (auto v = msg->mounts.begin(); v != msg->mounts.end(); v += 2) {
+                auto m = mountpoints.find(*v);
+                if (m == mountpoints.end()) {
+                        status.disks.push_back(255);
+                }
+                status.disks.push_back(m->second);
+        }
+}
+
 void Datalink::control_callback(Control::SharedPtr msg) {
         RCLCPP_INFO(this->get_logger(), "Got control callback");
         Json::Value root;
@@ -334,21 +406,6 @@ void Datalink::control_callback(Control::SharedPtr msg) {
                 setup_starcommand(
                         root["starcommand"]["downlink"].asString(),
                         root["starcommand"]["uplink"].asString()
-                );
-        }
-
-        if (this->get_parameter("publish_system_status").as_bool()) {
-                this->fill_publisher_list<SystemStatus>(
-                        root["status"]["pub"],
-                        &this->system_status_publishers,
-                        &this->system_status_publisher_ids
-                );
-        } else {
-                this->fill_subscriber_list<SystemStatus>(
-                        root["status"]["sub"],
-                        &this->system_status_subscriptions,
-                        &this->system_status_subscription_ids,
-                        std::bind(&Datalink::system_status_callback, this, _1, _2)
                 );
         }
 }

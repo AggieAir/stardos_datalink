@@ -45,10 +45,20 @@ namespace floattelem {
         constexpr uint8_t MSG_ID_SYSTEM_CAPACITY = 0x4;
         constexpr uint8_t MSG_SYSTEM_CAPACITY_STATIC_LENGTH = 12;
 
-        typedef struct {
-                int32_t max_memory_mb;
-                int32_t max_swap_mb;
-                std::vector<int32_t> disks_size_mb;
+        typedef struct __SystemCapacity {
+                uint32_t max_memory_mb;
+                uint32_t max_swap_mb;
+                std::vector<uint32_t> disks_size_mb;
+
+                bool operator==(struct __SystemCapacity &other) {
+                        return this->max_memory_mb == other.max_memory_mb &&
+                                this->max_swap_mb == other.max_swap_mb &&
+                                this->disks_size_mb == other.disks_size_mb;
+                }
+
+                bool operator!=(struct __SystemCapacity &other) {
+                        return !(*this == other);
+                }
         } SystemCapacity;
 
         class Message {

@@ -81,28 +81,30 @@ private:
         std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr> heartbeat_subscriptions;
         // * for control messages
         std::vector<rclcpp::Subscription<Control>::SharedPtr> signal_subscriptions;
+        // * for system status messages
+        std::vector<rclcpp::Subscription<SystemStatus>::SharedPtr> system_status_subscriptions;
 
         // map topics to topic ids
-        std::map<std::string, uint8_t> heartbeat_publisher_ids;
         std::map<std::string, uint8_t> heartbeat_subscription_ids;
+        std::map<std::string, uint8_t> control_subscription_ids;
+        std::map<std::string, uint8_t> system_status_subscription_ids;
 
         // Which topics to publish onto when we get a mavlink message
         // * for heartbeats
         std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr> heartbeat_publishers;
         // * for control messages
         std::vector<rclcpp::Publisher<Control>::SharedPtr> signal_publishers;
-
-        // map topics to topic ids
-        std::map<std::string, uint8_t> control_publisher_ids;
-        std::map<std::string, uint8_t> control_subscription_ids;
-
-        // System Status Publisher and Subscription
+        // * for system status message
         std::vector<rclcpp::Publisher<SystemStatus>::SharedPtr> system_status_publishers;
-        std::vector<rclcpp::Subscription<SystemStatus>::SharedPtr> system_status_subscriptions;
 
         // map topics to topic ids
+        std::map<std::string, uint8_t> heartbeat_publisher_ids;
+        std::map<std::string, uint8_t> control_publisher_ids;
         std::map<std::string, uint8_t> system_status_publisher_ids;
-        std::map<std::string, uint8_t> system_status_subscription_ids;
+
+        std::map<uint8_t, floattelem::SystemCapacity> cached_systems;
+
+        std::map<std::string, uint8_t> mountpoints;
 
         // Publishers for MAVLink data received from the autopilot
         rclcpp::Publisher<GPSPosition>::SharedPtr gps_raw_publisher;
@@ -125,6 +127,8 @@ private:
         void setup_autopilot_telemetry(bool activated);
         // Setup starcommand downlink and uplink
         void setup_starcommand(std::string downlink_topic, std::string uplink_topic);
+        // Load the properties of each system and the status messages they publish
+        void load_system_statuses();
         // Send a telemetry packet
 	void send();
         // Check to see if there is another system; connect if so

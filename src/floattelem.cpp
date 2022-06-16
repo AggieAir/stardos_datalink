@@ -4,7 +4,10 @@
 #include <sstream>
 #include <stdexcept>
 #include <stdint.h>
+
 #include "floattelem.hpp"
+#include "splitter.hpp"
+
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 
 namespace floattelem {
@@ -150,11 +153,11 @@ namespace floattelem {
                 // Add three for each mount point (1 each for mounts and 2 each for disks)
                 int length = MSG_SYSTEM_STATUS_STATIC_LENGTH + msg->cpu_usage.size() + 3 * msg->mounts.size();
 
-                if (!check_space(MSG_LENGTH_HEARTBEAT)) {
+                if (!check_space(length)) {
                         return false;
                 }
 
-                this->push_header(MSG_ID_HEARTBEAT, MSG_LENGTH_HEARTBEAT, msg->cpu_usage.size());
+                this->push_header(MSG_ID_SYSTEM_STATUS, length, msg->cpu_usage.size());
 
                 uint8_t *data8 = data_u8();
                 uint16_t *data16 = data_u16();
@@ -192,12 +195,12 @@ namespace floattelem {
         SlimSystemStatus Message::pop_system_status_message() {
                 Header head = next_header();
 
-                if (head.msg_type != MSG_ID_HEARTBEAT) {
-                        throw  wrong_id_error(head.msg_type, MSG_ID_HEARTBEAT);
+                if (head.msg_type != MSG_ID_SYSTEM_STATUS) {
+                        throw  wrong_id_error(head.msg_type, MSG_ID_SYSTEM_STATUS);
                 }
                 
                 if (head.msg_length < MSG_SYSTEM_STATUS_STATIC_LENGTH) {
-                        throw wrong_length_error(head.msg_length, MSG_LENGTH_HEARTBEAT);
+                        throw wrong_length_error(head.msg_length, MSG_SYSTEM_STATUS_STATIC_LENGTH);
                 }
 
                 uint8_t *data8 = data_u8();
@@ -228,6 +231,79 @@ namespace floattelem {
                 for (int i = 0; i < disk_count; i++) {
                         ret.mounts.push_back(data8[localoffset]);
                         localoffset++;
+                }
+
+                forward(localoffset);
+
+                return ret;
+        }
+
+        bool Message::push_system_capacity_message(SystemCapacity *msg, uint8_t topic_id) {
+                /*  bits  bytes  hword   word
+                 *  0:23   0- 2   0         0  header
+                 * 24:31      3    - 1         num_disks
+                 * 32:63   4- 7   2- 3      1  max_memory_mb
+                 * 64:95   8-11   4- 5      2  max_swap_mb
+                 * 96: a  12- a   6- a      3  disks_size_mb
+                 */
+
+                // There will always be 12 bytes comprising the statically-sized portion.
+                // Add one byte for each cpu_usage flag
+                // Add three for each mount point (1 each for mounts and 2 each for disks)
+                int length = MSG_SYSTEM_CAPACITY_STATIC_LENGTH + 4 * msg->disks_size_mb.size();
+
+                if (!check_space(length)) {
+                        return false;
+                }
+
+                this->push_header(MSG_ID_HEARTBEAT, length, topic_id);
+
+                uint8_t *data8 = data_u8();
+                uint32_t *data32 = data_u32();
+
+                data8[3] = msg->disks_size_mb.size();
+
+                data32[1] = msg->max_memory_mb;
+                data32[2] = msg->max_swap_mb;
+
+                int localoffset = MSG_SYSTEM_CAPACITY_STATIC_LENGTH; // IN BYTES!!!
+
+                for (auto v = msg->disks_size_mb.begin(); v != msg->disks_size_mb.end(); v++) {
+                        data32[localoffset / 4] = *v;
+                        localoffset += 4;
+                }
+
+                finalize(localoffset);
+
+                return true;
+        }
+
+        SystemCapacity Message::pop_system_capacity_message() {
+                Header head = next_header();
+
+                if (head.msg_type != MSG_ID_SYSTEM_CAPACITY) {
+                        throw  wrong_id_error(head.msg_type, MSG_ID_SYSTEM_CAPACITY);
+                }
+                
+                if (head.msg_length < MSG_SYSTEM_CAPACITY_STATIC_LENGTH) {
+                        throw wrong_length_error(head.msg_length, MSG_SYSTEM_CAPACITY_STATIC_LENGTH);
+                }
+
+                uint8_t *data8 = data_u8();
+                uint32_t *data32 = data_u32();
+
+                SystemCapacity ret;
+
+                ret.max_memory_mb = data32[1];
+                ret.max_swap_mb   = data32[2];
+
+                uint8_t disk_count = data8[3];
+
+                int localoffset = MSG_SYSTEM_CAPACITY_STATIC_LENGTH;
+
+                for (int i = 0; i < disk_count; i++) {
+                        ret.disks_size_mb.push_back(data32[localoffset / 2]);
+                        localoffset += 2;
                 }
 
                 forward(localoffset);

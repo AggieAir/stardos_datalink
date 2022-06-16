@@ -15,6 +15,12 @@ using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::SystemStatus;
 
 namespace floattelem {
+        typedef struct {
+                uint8_t msg_type;
+                uint8_t msg_length;
+                uint8_t topic_id;
+        } Header;
+
         constexpr size_t BUFFER_SIZE = 249;
         constexpr uint8_t MSG_BASE_LENGTH = 3;
 
@@ -28,12 +34,6 @@ namespace floattelem {
         constexpr uint8_t MSG_SYSTEM_STATUS_STATIC_LENGTH = 12;
 
         typedef struct {
-                uint8_t msg_type;
-                uint8_t msg_length;
-                uint8_t topic_id;
-        } Header;
-
-        typedef struct {
                 std::vector<uint8_t> cpu_usage;
                 uint16_t memory;
                 uint16_t swap;
@@ -41,6 +41,15 @@ namespace floattelem {
                 std::vector<uint8_t> mounts;
                 uint32_t uptime;
         } SlimSystemStatus;
+
+        constexpr uint8_t MSG_ID_SYSTEM_CAPACITY = 0x4;
+        constexpr uint8_t MSG_SYSTEM_CAPACITY_STATIC_LENGTH = 12;
+
+        typedef struct {
+                int32_t max_memory_mb;
+                int32_t max_swap_mb;
+                std::vector<int32_t> disks_size_mb;
+        } SystemCapacity;
 
         class Message {
         public:
@@ -79,6 +88,10 @@ namespace floattelem {
                 // system_status
                 bool push_system_status_message(SlimSystemStatus *in, uint8_t topic_id);
                 SlimSystemStatus pop_system_status_message();
+
+                // system_capacity
+                bool push_system_capacity_message(SystemCapacity *in, uint8_t topic_id);
+                SystemCapacity pop_system_capacity_message();
 
                 // Get the floats themselves
                 uint8_t *get_data();

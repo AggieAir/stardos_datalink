@@ -52,7 +52,8 @@ Datalink::Datalink(
         uint8_t targetsysid,
         uint8_t targetcompid,
         bool autopilot_telemetry,
-        bool starcommand
+        bool starcommand,
+        bool publish_system_status
 ) : Node(name),
         name{name},
         array_id{0},
@@ -85,6 +86,18 @@ Datalink::Datalink(
 
         // should we publish extra info for StarCommand's benefit?
         this->declare_parameter<bool>("starcommand", starcommand, ro);
+
+        // should we publish system status messages?
+        // * if this is true, then we will listen for FloatTelem system_status and
+        //   system_capacity messages from the datalink, cache the results, and publish
+        //   SystemStatus messages to ROS2.
+        // * if this is false, then we will subscribe to SystemStatus messages from ROS2
+        //   and send them across MAVLink as FloatTelem system_status and system_capacity 
+        //   messages.
+        // basically another copilot vs ground distinction, like starcommand and 
+        // autopilot_telemetry. but I'd rather have too many configuration options than
+        // too few.
+        this->declare_parameter<bool>("publish_system_status", publish_system_status, ro);
 
 	configure();
 	connect();
@@ -321,6 +334,21 @@ void Datalink::control_callback(Control::SharedPtr msg) {
                 setup_starcommand(
                         root["starcommand"]["downlink"].asString(),
                         root["starcommand"]["uplink"].asString()
+                );
+        }
+
+        if (this->get_parameter("publish_system_status").as_bool()) {
+                this->fill_publisher_list<SystemStatus>(
+                        root["status"]["pub"],
+                        &this->system_status_publishers,
+                        &this->system_status_publisher_ids
+                );
+        } else {
+                this->fill_subscriber_list<SystemStatus>(
+                        root["status"]["sub"],
+                        &this->system_status_subscriptions,
+                        &this->system_status_subscription_ids,
+                        std::bind(&Datalink::system_status_callback, this, _1, _2)
                 );
         }
 }

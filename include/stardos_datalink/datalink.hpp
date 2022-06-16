@@ -19,6 +19,7 @@
 #include "stardos_interfaces/msg/gps_position.hpp"
 #include "stardos_interfaces/msg/attitude.hpp"
 #include "stardos_interfaces/msg/system_time.hpp"
+#include "stardos_interfaces/msg/system_status.hpp"
 #include "stardos_interfaces/msg/star_command_downlink.hpp"
 #include "stardos_interfaces/msg/star_command_uplink.hpp"
 
@@ -30,6 +31,7 @@ using stardos_interfaces::msg::GlobalPosition;
 using stardos_interfaces::msg::GPSPosition;
 using stardos_interfaces::msg::Attitude;
 using stardos_interfaces::msg::SystemTime;
+using stardos_interfaces::msg::SystemStatus;
 using stardos_interfaces::msg::StarCommandDownlink;
 using stardos_interfaces::msg::StarCommandUplink;
 
@@ -45,7 +47,8 @@ public:
                 uint8_t targetsysid,
                 uint8_t targetcompid,
                 bool autopilot_telemetry,
-                bool starcommand
+                bool starcommand,
+                bool publish_system_status
         );
 
 private:
@@ -73,23 +76,33 @@ private:
         // Subscribes to notifications from the STARDOS control node
         rclcpp::Subscription<Control>::SharedPtr control_subscription;
 
-        // mapping strings to topic ids
-        std::map<std::string, uint8_t> heartbeat_publisher_ids;
-        std::map<std::string, uint8_t> heartbeat_subscription_ids;
-        std::map<std::string, uint8_t> control_publisher_ids;
-        std::map<std::string, uint8_t> control_subscription_ids;
-
         // Which topics to listen to in order to forward over mavlink
         // * for heartbeats
         std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr> heartbeat_subscriptions;
         // * for control messages
         std::vector<rclcpp::Subscription<Control>::SharedPtr> signal_subscriptions;
 
+        // map topics to topic ids
+        std::map<std::string, uint8_t> heartbeat_publisher_ids;
+        std::map<std::string, uint8_t> heartbeat_subscription_ids;
+
         // Which topics to publish onto when we get a mavlink message
         // * for heartbeats
         std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr> heartbeat_publishers;
         // * for control messages
         std::vector<rclcpp::Publisher<Control>::SharedPtr> signal_publishers;
+
+        // map topics to topic ids
+        std::map<std::string, uint8_t> control_publisher_ids;
+        std::map<std::string, uint8_t> control_subscription_ids;
+
+        // System Status Publisher and Subscription
+        std::vector<rclcpp::Publisher<SystemStatus>::SharedPtr> system_status_publishers;
+        std::vector<rclcpp::Subscription<SystemStatus>::SharedPtr> system_status_subscriptions;
+
+        // map topics to topic ids
+        std::map<std::string, uint8_t> system_status_publisher_ids;
+        std::map<std::string, uint8_t> system_status_subscription_ids;
 
         // Publishers for MAVLink data received from the autopilot
         rclcpp::Publisher<GPSPosition>::SharedPtr gps_raw_publisher;
@@ -127,6 +140,8 @@ private:
         void heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg);
         // Runs every time we get a control signal
         void signal_callback(int id, Control::SharedPtr msg);
+        // Runs every time we get a system status message
+        void system_status_callback(int id, SystemStatus::SharedPtr msg);
         // What to call when we see a control message
         // This is a STARDOS concept; in this context the control node tells us
         // which topics to publish and subscribe on. It is a JSON string.

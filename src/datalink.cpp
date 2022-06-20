@@ -577,6 +577,7 @@ void Datalink::array_received_callback(mavlink_message_t msg) {
                                 out.disks.push_back(
                                         (uint32_t) ((float) *v.first / USHRT_MAX * *v.second)
                                 );
+                                out.disks.push_back(*v.second);
                         }
                 } else {
                         RCLCPP_ERROR(

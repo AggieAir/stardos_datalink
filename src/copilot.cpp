@@ -16,6 +16,7 @@ int main(int argc, char *argv[]) {
                         SYS_ID_GCS,
                         COMP_ID_GCS,
                         true,
+                        false,
                         false);
         rclcpp::spin(std::shared_ptr<Datalink>(&datalink));
         rclcpp::shutdown();

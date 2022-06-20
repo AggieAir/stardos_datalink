@@ -157,7 +157,7 @@ namespace floattelem {
                         return false;
                 }
 
-                this->push_header(MSG_ID_SYSTEM_STATUS, length, msg->cpu_usage.size());
+                this->push_header(MSG_ID_SYSTEM_STATUS, length, topic_id);
 
                 uint8_t *data8 = data_u8();
                 uint16_t *data16 = data_u16();
@@ -214,7 +214,7 @@ namespace floattelem {
                 ret.uptime = data32[2];
 
                 uint8_t cpu_count = head.topic_id;
-                uint8_t disk_count = data8[3];
+                uint8_t disk_count = (head.msg_length - MSG_SYSTEM_STATUS_STATIC_LENGTH - cpu_count) / 3;
 
                 int localoffset = MSG_SYSTEM_STATUS_STATIC_LENGTH;
 

@@ -114,6 +114,7 @@ Datalink::Datalink(
         setup_autopilot_telemetry(this->get_parameter("autopilot_telemetry").as_bool());
 
         load_system_statuses();
+        load_mountpoints();
 
         RCLCPP_INFO(this->get_logger(), "Binding timer callback");
 
@@ -188,6 +189,18 @@ void Datalink::load_system_statuses() {
                                 }
                         );
                 }
+        }
+}
+
+void Datalink::load_mountpoints() {
+        std::ifstream file("mountpoints.json");
+        Json::Value root;
+
+        file >> root;
+
+        uint8_t i = 0;
+        for (auto v = root.begin(); v != root.end(); v++) {
+                mountpoints.insert(std::make_pair(v->asString(), i));
         }
 }
 
@@ -535,6 +548,36 @@ void Datalink::array_received_callback(mavlink_message_t msg) {
                         down.origin = signal_publishers[head.topic_id]->get_topic_name();
 
                         starcommand_publisher->publish(down);
+                } else if (head.msg_type == floattelem::MSG_ID_SYSTEM_CAPACITY) {
+                        floattelem::SystemCapacity cap = message.pop_system_capacity_message();
+                        cached_systems[head.topic_id] = cap;
+                } else if (head.msg_type == floattelem::MSG_ID_SYSTEM_STATUS) {
+                        floattelem::SlimSystemStatus in = message.pop_system_status_message();
+                        floattelem::SystemCapacity cap = cached_systems[head.topic_id];
+                        SystemStatus out;
+                        out.cpu_count = in.cpu_usage.size();
+                        out.cpu_usage = in.cpu_usage;
+                        out.uptime = in.uptime;
+
+                        out.memory = std::array<uint32_t, 2> {
+                                (uint32_t) ((float) in.memory / USHRT_MAX * cap.max_memory_mb),
+                                cap.max_memory_mb
+                        };
+
+                        out.swap = std::array<uint32_t, 2> {
+                                (uint32_t) ((float) in.swap / USHRT_MAX * cap.max_swap_mb),
+                                cap.max_swap_mb
+                        };
+
+                        for (auto v = in.mounts.begin(); v != in.mounts.end(); v++) {
+                                out.mounts.push_back(mountpoint_names[*v]);
+                        }
+
+                        for (auto v = std::make_pair(in.disks.begin(), cap.disks_size_mb.begin()); v.first != in.disks.end(); v.first++, v.second++) {
+                                out.disks.push_back(
+                                        (uint32_t) ((float) *v.first / USHRT_MAX * *v.second)
+                                );
+                        }
                 } else {
                         RCLCPP_ERROR(
                                 this->get_logger(),

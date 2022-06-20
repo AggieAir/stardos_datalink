@@ -82,7 +82,7 @@ private:
         // * for control messages
         std::vector<rclcpp::Subscription<Control>::SharedPtr> signal_subscriptions;
         // * for system status messages
-        std::vector<rclcpp::Subscription<SystemStatus>::SharedPtr> system_status_subscriptions;
+        std::map<uint8_t, rclcpp::Subscription<SystemStatus>::SharedPtr> system_status_subscriptions;
 
         // map topics to topic ids
         std::map<std::string, uint8_t> heartbeat_subscription_ids;
@@ -95,16 +95,20 @@ private:
         // * for control messages
         std::vector<rclcpp::Publisher<Control>::SharedPtr> signal_publishers;
         // * for system status message
-        std::vector<rclcpp::Publisher<SystemStatus>::SharedPtr> system_status_publishers;
+        //   (this is a map because we may skip some system id at some point)
+        std::map<uint8_t, rclcpp::Publisher<SystemStatus>::SharedPtr> system_status_publishers;
 
         // map topics to topic ids
         std::map<std::string, uint8_t> heartbeat_publisher_ids;
         std::map<std::string, uint8_t> control_publisher_ids;
         std::map<std::string, uint8_t> system_status_publisher_ids;
 
+        // these store the capabilities of the systems we listen to
         std::map<uint8_t, floattelem::SystemCapacity> cached_systems;
 
+        // enum specifying where filesystems can be mounted
         std::map<std::string, uint8_t> mountpoints;
+        std::vector<std::string> mountpoint_names;
 
         // Publishers for MAVLink data received from the autopilot
         rclcpp::Publisher<GPSPosition>::SharedPtr gps_raw_publisher;
@@ -129,6 +133,8 @@ private:
         void setup_starcommand(std::string downlink_topic, std::string uplink_topic);
         // Load the properties of each system and the status messages they publish
         void load_system_statuses();
+        // Load the mountpoint enum
+        void load_mountpoints();
         // Send a telemetry packet
 	inline void send_buffered_message();
         // Send a telemetry packet

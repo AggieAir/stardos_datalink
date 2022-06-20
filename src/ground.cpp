@@ -16,6 +16,7 @@ int main(int argc, char *argv[]) {
                         SYS_ID_PAYLOAD,
                         COMP_ID_COPILOT,
                         false,
+                        true,
                         true);
         rclcpp::spin(std::shared_ptr<Datalink>(&datalink));
         rclcpp::shutdown();

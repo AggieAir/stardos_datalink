@@ -342,11 +342,9 @@ void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
         sc.max_swap_mb = msg->swap[1];
 
         for (auto v = msg->disks.begin(); v != msg->disks.end(); v += 2) {
-                RCLCPP_INFO(this->get_logger(), "adding disk with size %d", v[1]);
                 sc.disks_size_mb.push_back(v[1]);
         }
 
-        RCLCPP_INFO(this->get_logger(), "Attempting to add this system to the list");
         auto inserted = cached_systems.insert(std::make_pair(id, sc)); // pair<pair<key, value>, bool>
         auto entry = inserted.first; // pair<key, value>
         bool success = inserted.second; // bool
@@ -363,25 +361,19 @@ void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
                 }
         }
 
-        RCLCPP_INFO(this->get_logger(), "Preparing system status message");
         floattelem::SlimSystemStatus status;
         status.cpu_usage = msg->cpu_usage;
         status.memory = (uint16_t) ((float) msg->memory[0] / (float) msg->memory[1] * USHRT_MAX);
         status.swap = (uint16_t) ((float) msg->swap[0] / (float) msg->swap[1] * USHRT_MAX);
         status.uptime = msg->uptime;
 
-        RCLCPP_INFO(this->get_logger(), "Time to add disks");
         for (auto v = msg->disks.begin(); v != msg->disks.end(); v += 2) {
-                RCLCPP_INFO(this->get_logger(), "disk found: %d/%d", v[0], v[1]);
                 status.disks.push_back((uint16_t) ((float) *v / (float) *(v+1) * USHRT_MAX));
         }
 
         
-        RCLCPP_INFO(this->get_logger(), "now for the mountpoints");
         for (auto v = msg->mounts.begin(); v != msg->mounts.end(); v++) {
-                RCLCPP_INFO(this->get_logger(), "search for mountpoint %s", v->c_str());
                 auto m = mountpoints.find(*v);
-                RCLCPP_INFO(this->get_logger(), "finished searching", v->c_str());
                 if (m == mountpoints.end()) {
                         RCLCPP_ERROR(this->get_logger(), "%s is not a recognized mountpoint", v->c_str());
                         status.disks.push_back(255);
@@ -391,9 +383,9 @@ void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
                 }
         }
 
-        // tmsg.push_system_status_message(&status, id);
+        tmsg.push_system_status_message(&status, id);
 
-        // this->send_telemetry(tmsg);
+        this->send_telemetry(tmsg);
 }
 
 void Datalink::control_callback(Control::SharedPtr msg) {

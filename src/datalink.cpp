@@ -201,6 +201,8 @@ void Datalink::load_mountpoints() {
         uint8_t i = 0;
         for (auto v = root.begin(); v != root.end(); v++) {
                 mountpoints.insert(std::make_pair(v->asString(), i));
+                mountpoint_names.push_back(v->asString());
+                i++;
         }
 }
 
@@ -348,32 +350,38 @@ void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
         auto inserted = cached_systems.insert(std::make_pair(id, sc)); // pair<pair<key, value>, bool>
         auto entry = inserted.first; // pair<key, value>
         bool success = inserted.second; // bool
-        floattelem::SystemCapacity *cap = &entry->second;
+        floattelem::SystemCapacity& cap = entry->second;
 
         TelemMessage tmsg;
-        if (success || *cap != sc) {
+        if (success || cap != sc) {
                 RCLCPP_INFO(this->get_logger(), "Updating system capabilities");
+                RCLCPP_DEBUG(this->get_logger(), "Pushing message");
                 tmsg.push_system_capacity_message(&sc, id);
-                *cap = sc;
+                RCLCPP_DEBUG(this->get_logger(), "Replacing entry in cached_systems");
+                cap = sc;
         }
 
+        RCLCPP_DEBUG(this->get_logger(), "Preparing FloatTelem message for SystemStatus");
         floattelem::SlimSystemStatus status;
+        RCLCPP_DEBUG(this->get_logger(), "Adding static details");
         status.cpu_usage = msg->cpu_usage;
         status.memory = (uint16_t) ((float) msg->memory[0] / (float) msg->memory[1] * USHRT_MAX);
         status.swap = (uint16_t) ((float) msg->swap[0] / (float) msg->swap[1] * USHRT_MAX);
         status.uptime = msg->uptime;
 
+        RCLCPP_DEBUG(this->get_logger(), "Adding disks");
         for (auto v = msg->disks.begin(); v != msg->disks.end(); v += 2) {
                 status.disks.push_back((uint16_t) ((float) *v / (float) *(v+1) * USHRT_MAX));
         }
         
+        RCLCPP_DEBUG(this->get_logger(), "Adding mounts");
         for (auto v = msg->mounts.begin(); v != msg->mounts.end(); v++) {
                 auto m = mountpoints.find(*v);
                 if (m == mountpoints.end()) {
                         RCLCPP_ERROR(this->get_logger(), "%s is not a recognized mountpoint", v->c_str());
                         status.mounts.push_back(255);
                 } else {
-                        RCLCPP_INFO(this->get_logger(), "mountpoint exists", m->first.c_str());
+                        RCLCPP_INFO(this->get_logger(), "found mountpoint %s", m->first.c_str());
                         status.mounts.push_back(m->second);
                 }
         }
@@ -553,6 +561,11 @@ void Datalink::array_received_callback(mavlink_message_t msg) {
                 } else if (head.msg_type == floattelem::MSG_ID_SYSTEM_CAPACITY) {
                         floattelem::SystemCapacity cap = message.pop_system_capacity_message();
                         RCLCPP_INFO(this->get_logger(), "Caching capacities for system %d.", head.topic_id);
+
+                        for (auto v = cap.disks_size_mb.begin(); v != cap.disks_size_mb.end(); v++) {
+                                RCLCPP_INFO(this->get_logger(), "Size: %d", *v);
+                        }
+
                         cached_systems[head.topic_id] = cap;
                 } else if (head.msg_type == floattelem::MSG_ID_SYSTEM_STATUS) {
                         RCLCPP_INFO(this->get_logger(), "Got status message from system %d.", head.topic_id);
@@ -587,7 +600,6 @@ void Datalink::array_received_callback(mavlink_message_t msg) {
                         };
 
                         RCLCPP_DEBUG(this->get_logger(), "Creating mounts vector");
-                        out.mounts = std::vector<std::string>();
                         for (auto v = in.mounts.begin(); v != in.mounts.end(); v++) {
                                 out.mounts.push_back(*v >= mountpoint_names.size() ? "UNKNOWN" : mountpoint_names[*v]);
                         }

@@ -163,7 +163,7 @@ namespace floattelem {
                 uint16_t *data16 = data_u16();
                 uint32_t *data32 = data_u32();
 
-                data8[3] = msg->mounts.size();
+                data8[3] = msg->cpu_usage.size();
 
                 data16[2] = msg->memory;
                 data16[3] = msg->swap;
@@ -196,7 +196,7 @@ namespace floattelem {
                 Header head = next_header();
 
                 if (head.msg_type != MSG_ID_SYSTEM_STATUS) {
-                        throw  wrong_id_error(head.msg_type, MSG_ID_SYSTEM_STATUS);
+                        throw wrong_id_error(head.msg_type, MSG_ID_SYSTEM_STATUS);
                 }
                 
                 if (head.msg_length < MSG_SYSTEM_STATUS_STATIC_LENGTH) {
@@ -213,7 +213,7 @@ namespace floattelem {
                 ret.swap   = data16[3];
                 ret.uptime = data32[2];
 
-                uint8_t cpu_count = head.topic_id;
+                uint8_t cpu_count = data8[3];
                 uint8_t disk_count = (head.msg_length - MSG_SYSTEM_STATUS_STATIC_LENGTH - cpu_count) / 3;
 
                 int localoffset = MSG_SYSTEM_STATUS_STATIC_LENGTH;
@@ -302,8 +302,8 @@ namespace floattelem {
                 int localoffset = MSG_SYSTEM_CAPACITY_STATIC_LENGTH;
 
                 for (int i = 0; i < disk_count; i++) {
-                        ret.disks_size_mb.push_back(data32[localoffset / 2]);
-                        localoffset += 2;
+                        ret.disks_size_mb.push_back(data32[localoffset / 4]);
+                        localoffset += 4;
                 }
 
                 forward(localoffset);

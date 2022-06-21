@@ -256,7 +256,7 @@ namespace floattelem {
                         return false;
                 }
 
-                this->push_header(MSG_ID_HEARTBEAT, length, topic_id);
+                this->push_header(MSG_ID_SYSTEM_CAPACITY, length, topic_id);
 
                 uint8_t *data8 = data_u8();
                 uint32_t *data32 = data_u32();

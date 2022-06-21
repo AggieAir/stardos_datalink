@@ -351,14 +351,10 @@ void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
         floattelem::SystemCapacity *cap = &entry->second;
 
         TelemMessage tmsg;
-        if (success) {
-                RCLCPP_INFO(this->get_logger(), "New system added");
-        } else {
-                RCLCPP_INFO(this->get_logger(), "Found new system capabilities");
-                if (*cap != sc) {
-                        tmsg.push_system_capacity_message(&sc, id);
-                        std::swap(sc, *cap);
-                }
+        if (success || *cap != sc) {
+                RCLCPP_INFO(this->get_logger(), "Updating system capabilities");
+                tmsg.push_system_capacity_message(&sc, id);
+                *cap = sc;
         }
 
         floattelem::SlimSystemStatus status;
@@ -370,16 +366,15 @@ void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
         for (auto v = msg->disks.begin(); v != msg->disks.end(); v += 2) {
                 status.disks.push_back((uint16_t) ((float) *v / (float) *(v+1) * USHRT_MAX));
         }
-
         
         for (auto v = msg->mounts.begin(); v != msg->mounts.end(); v++) {
                 auto m = mountpoints.find(*v);
                 if (m == mountpoints.end()) {
                         RCLCPP_ERROR(this->get_logger(), "%s is not a recognized mountpoint", v->c_str());
-                        status.disks.push_back(255);
+                        status.mounts.push_back(255);
                 } else {
                         RCLCPP_INFO(this->get_logger(), "mountpoint exists", m->first.c_str());
-                        status.disks.push_back(m->second);
+                        status.mounts.push_back(m->second);
                 }
         }
 
@@ -557,35 +552,56 @@ void Datalink::array_received_callback(mavlink_message_t msg) {
                         starcommand_publisher->publish(down);
                 } else if (head.msg_type == floattelem::MSG_ID_SYSTEM_CAPACITY) {
                         floattelem::SystemCapacity cap = message.pop_system_capacity_message();
+                        RCLCPP_INFO(this->get_logger(), "Caching capacities for system %d.", head.topic_id);
                         cached_systems[head.topic_id] = cap;
                 } else if (head.msg_type == floattelem::MSG_ID_SYSTEM_STATUS) {
+                        RCLCPP_INFO(this->get_logger(), "Got status message from system %d.", head.topic_id);
                         floattelem::SlimSystemStatus in = message.pop_system_status_message();
-                        floattelem::SystemCapacity cap = cached_systems[head.topic_id];
+
+                        auto result = cached_systems.find(head.topic_id);
+                        if (result == cached_systems.end()) {
+                                RCLCPP_ERROR(this->get_logger(), "System %d not cached!", head.topic_id);
+                                continue;
+                        }
+
+                        floattelem::SystemCapacity &cap = result->second;
+
+                        RCLCPP_DEBUG(this->get_logger(), "Preparing ROS message");
                         SystemStatus out;
+                        RCLCPP_DEBUG(this->get_logger(), "Adding CPU info");
                         out.cpu_count = in.cpu_usage.size();
                         out.cpu_usage = in.cpu_usage;
+                        RCLCPP_DEBUG(this->get_logger(), "Adding uptime info");
                         out.uptime = in.uptime;
 
+                        RCLCPP_DEBUG(this->get_logger(), "Creating memory array");
                         out.memory = std::array<uint32_t, 2> {
                                 (uint32_t) ((float) in.memory / USHRT_MAX * cap.max_memory_mb),
                                 cap.max_memory_mb
                         };
 
+                        RCLCPP_DEBUG(this->get_logger(), "Creating swap array");
                         out.swap = std::array<uint32_t, 2> {
                                 (uint32_t) ((float) in.swap / USHRT_MAX * cap.max_swap_mb),
                                 cap.max_swap_mb
                         };
 
+                        RCLCPP_DEBUG(this->get_logger(), "Creating mounts vector");
+                        out.mounts = std::vector<std::string>();
                         for (auto v = in.mounts.begin(); v != in.mounts.end(); v++) {
-                                out.mounts.push_back(mountpoint_names[*v]);
+                                out.mounts.push_back(*v >= mountpoint_names.size() ? "UNKNOWN" : mountpoint_names[*v]);
                         }
 
+                        RCLCPP_DEBUG(this->get_logger(), "Creating disks and disk size vector");
                         for (auto v = std::make_pair(in.disks.begin(), cap.disks_size_mb.begin()); v.first != in.disks.end(); v.first++, v.second++) {
                                 out.disks.push_back(
                                         (uint32_t) ((float) *v.first / USHRT_MAX * *v.second)
                                 );
                                 out.disks.push_back(*v.second);
                         }
+
+                        RCLCPP_DEBUG(this->get_logger(), "Publishing to %s", system_status_publishers[head.topic_id]->get_topic_name());
+                        system_status_publishers[head.topic_id]->publish(out);
                 } else {
                         RCLCPP_ERROR(
                                 this->get_logger(),

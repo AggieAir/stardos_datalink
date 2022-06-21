@@ -381,7 +381,7 @@ void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
                         RCLCPP_ERROR(this->get_logger(), "%s is not a recognized mountpoint", v->c_str());
                         status.mounts.push_back(255);
                 } else {
-                        RCLCPP_INFO(this->get_logger(), "found mountpoint %s", m->first.c_str());
+                        RCLCPP_DEBUG(this->get_logger(), "found mountpoint %s", m->first.c_str());
                         status.mounts.push_back(m->second);
                 }
         }

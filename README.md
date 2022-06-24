@@ -23,20 +23,7 @@ data in a similar fashion.
 
 This node subscribes to control messages coming from `[name]/control` where
 `[name]` is the name of the node. These control messages are expected to be
-JSON strings with a format similar to:
-
-```json
-{
-  "heartbeat": {
-    "pub": ["/other_system/a/heartbeat", "/other_system/b/heartbeat"],
-    "sub": ["/this_system/c/heartbeat", "/this_system/d/heartbeat"]
-  },
-  "control": {
-    "pub": ["/other_system/action_a", "/other_system/action_b"],
-    "sub": ["/this_system/action_c", "/this_system/action_d"]
-  }
-}
-```
+JSON strings.
 
 The `"heartbeat"` object contains a list (`"sub"`) of systems to subscribe to on
 this side and send to the other side of the MAVLink connection and a list
@@ -48,6 +35,45 @@ The `"control"` object functions much the same way, but with
 
 Send the same thing on the other side, but swap which are `pub`'d and which are
 `sub`'d.
+
+The `"starcommand"` object is relevant only for the ground control and it
+controls which topics are used for [StarCommand interop][sc_inter].
+
+Here's an example of the format.
+
+#### For the GCS
+
+```json
+{
+  "heartbeat": {
+    "pub": ["/aircraft/a/heartbeat", "/aircraft/b/heartbeat"],
+    "sub": ["/gcs/c/heartbeat", "/gcs/d/heartbeat"]
+  },
+  "control": {
+    "pub": ["/aircraft/action_a", "/aircraft/action_b"],
+    "sub": ["/gcs/action_c", "/gcs/action_d"]
+  },
+  "starcommand": {
+    "downlink": "/gcs/starcommand_downlink",
+    "uplink": "/gcs/starcommand_uplink"
+  }
+}
+```
+
+#### For the aircraft
+
+```json
+{
+  "heartbeat": {
+    "pub": ["/gcs/a/heartbeat", "/gcs/b/heartbeat"],
+    "sub": ["/aircraft/c/heartbeat", "/aircraft/d/heartbeat"]
+  },
+  "control": {
+    "pub": ["/gcs/action_a", "/gcs/action_b"],
+    "sub": ["/aircraft/action_c", "/aircraft/action_d"]
+  }
+}
+```
 
 ## Configuration
 
@@ -62,6 +88,15 @@ The ground executable creates a node called `/datalink_ground` by default. The
 copilot executable creates a node called `/datalink_copilot`.  You may want to
 [remap these names][ros2_rebinding] so that they fit in with the STARDOS
 hierarchy.
+
+### Enums
+
+There are a few files that need to be in the same directory as you start the
+executable. `mountpoints.json` contains an enum of different possible
+mountpoints on a system. `systems.json` contains an enum of different possible
+systems to listen to. Both of these are used to implement system status
+serialization (read about [System Status Messages][#system-status-message] and
+[System Capacity Messages][#system-capacity-message].
 
 ### Parameters
 
@@ -151,6 +186,47 @@ now, I publish:
 * `gps_position` ([`GPS_RAW_INT`][mavlink_gps] messages)
 * `attitude` ([`ATTITUDE`][mavlink_att] messages)
 * `system_time` ([`SYSTEM_TIME`][mavlink_systime] messages)
+
+#### `starcommand`
+
+Whether to publish special Uplink and Downlink messages for [StarCommand's
+benefit][sc_inter]. This should be set to true on any (MAVLink) system that has
+StarCommand on it, which should just be the GCS.
+
+#### `publish_system_status`
+
+Whether to publish system status messages.
+* If this is true, then we will listen for FloatTelem `system_status` and
+  `system_capacity` messages from the datalink, cache the results, and publish
+  SystemStatus messages to ROS2.
+* If this is false, then we will subscribe to SystemStatus messages from ROS2
+  and send them across MAVLink as FloatTelem `system_status` and `system_capacity`
+  messages.
+
+Should generally be true on the GCS and false on the aircraft.
+
+## StarCommand Interoperability
+
+This node publishes every FloatTelem message it receives to a topic specified
+by the control message. These messages are STARDOS `StarCommandUplink` and
+`StarCommandDownlink` messages with the information specific to the message
+type encoded as JSON strings. They look like this:
+
+```yaml
+type: "node" # NodeHeartbeat
+origin: "/aircraft/node_a"
+payload: >
+  {
+    "state": 0,
+    "requests": 55,
+    "errors: 8,
+    "failures": 15
+  }
+```
+
+The reason for this inclusion is that StarCommand was architected long before
+work on STARDOS proper began. StarCommand needs access to the same information,
+but expects it differently, so we publish it both ways.
 
 ## FloatTelem
 
@@ -249,6 +325,61 @@ The contents of the fields here are an implemenation detail of STARDOS nodes.
 
 The topic ID here represents which kind of message this is. The string is just
 any extra data and can be up to 13 bytes long.
+
+#### System Status Message
+
+* Message ID: 0x3
+* Message Length: 12 + n
+
+```
+ bits    type        field
+   0:23               header
+  24:31   uint8       cpu_count
+  32:47   uint16      memory
+  48:63   uint16      swap
+  64:95   uint32      uptime
+  96: a   uint16...   disks
+   a: b   uint8...    cpu_usage
+   b: c   uint8...    mounts
+```
+
+So this one is weird. These all represent what they say on the tin, but are
+scaled a bit differently than you might expect.
+
+`memory` and `swap` represent the proportion of memory and swap space used out
+of 65535.
+
+`disks` is an array containing the proportion out of 65535 of the space filled
+for each disk in use.
+
+`cpu_usage` is a proportion out of 255 of the percentage of clock cycles used.
+
+`mounts` is a list of entries in the enum that represents mounts. These
+correlate with the order of `disks`.
+
+All of these proportions need to be relative to something, and those are given
+in the System Capacity messages.
+
+#### System Capacity Message
+
+* Message ID: 0x4
+* Message Length: 12 + n
+
+```
+ bits    type        field
+   0:23               header
+  24:31   uint8       num_disks
+  32:63   uint32      max_memory_mb
+  64:95   uint32      max_swap_mb
+  96: a   uint32...   disks_size_mb
+```
+
+This is the complement to the system status message. It has lots of big numbers
+which represent facts about the system and which I didn't want to be
+transferring with as much frequency. It has the number of disks, then the size
+of memory and swap in megabytes, then the size of each disk in megabytes.
+
+These are sent across the wire whenever any of their details change.
 
 ## Getting MAVLink to work
 
@@ -360,3 +491,4 @@ on slack (I'm Richard Snider btw) if you need help with this garbage.
 [mavlink_dfa]: https://mavlink.io/en/messages/common.html#DEBUG_FLOAT_ARRAY
 [mavlink_systime]: https://mavlink.io/en/messages/common.html#SYSTEM_TIME
 [px4_modules]: https://docs.px4.io/master/en/modules/modules_main.html
+[sc_inter]: #starcommand-interoperability

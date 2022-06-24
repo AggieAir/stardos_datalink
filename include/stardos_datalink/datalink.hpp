@@ -39,11 +39,11 @@ class Datalink: public rclcpp::Node
 {
 public:
 	Datalink(
-                std::string name,
+                const std::string& name,
                 uint8_t sysid,
                 uint8_t compid,
                 bool heartbeat,
-                std::string connection_url,
+                const std::string& connection_url,
                 uint8_t targetsysid,
                 uint8_t targetcompid,
                 bool autopilot_telemetry,
@@ -52,6 +52,11 @@ public:
         );
 
 private:
+        /* ************************ *
+         * VARIABLE ZONE            *
+         * There are a lot of these *
+         * ************************ */
+
         // ROS node name
         std::string name;
         // Instance of MAVSDK -- this models the connection
@@ -122,6 +127,12 @@ private:
         rclcpp::Subscription<StarCommandUplink>::SharedPtr starcommand_subscription;
 
         floattelem::Message buffered_message;
+        
+
+        /* **************************** *
+         * FUNCTION ZONE                *
+         * Non-callback functions first *
+         * **************************** */
 
         // Wrapper around Mavsdk::set_configuration
 	void configure();
@@ -130,7 +141,7 @@ private:
         // Setup autopilot telemetry
         void setup_autopilot_telemetry(bool activated);
         // Setup starcommand downlink and uplink
-        void setup_starcommand(std::string downlink_topic, std::string uplink_topic);
+        void setup_starcommand(const std::string& downlink_topic, const std::string& uplink_topic);
         // Load the properties of each system and the status messages they publish
         void load_system_statuses();
         // Load the mountpoint enum
@@ -138,7 +149,7 @@ private:
         // Send a telemetry packet
 	inline void send_buffered_message();
         // Send a telemetry packet
-	void send_telemetry(floattelem::Message &msg);
+        mavsdk::MavlinkPassthrough::Result send_telemetry(const floattelem::Message &msg);
         // Check to see if there is another system; connect if so
         void check_systems();
 
@@ -146,8 +157,6 @@ private:
          * ENTERING CALLBACK LAND *
          * ********************** */
 
-        // Runs every 100ms
-        void timer_callback();
         // Runs every time we get a heartbeat
         void heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg);
         // Runs every time we get a control signal
@@ -163,27 +172,27 @@ private:
         
         // These all process particular mavlink message types
         // There's not much to see, tbh
-        void array_received_callback(mavlink_message_t msg);
-        void gps_raw_received_callback(mavlink_message_t msg);
-        void global_position_received_callback(mavlink_message_t msg);
-        void attitude_received_callback(mavlink_message_t msg);
-        void systime_received_callback(mavlink_message_t msg);
+        void array_received_callback(const mavlink_message_t& msg);
+        void gps_raw_received_callback(const mavlink_message_t& msg) const;
+        void global_position_received_callback(const mavlink_message_t& msg) const;
+        void attitude_received_callback(const mavlink_message_t& msg) const;
+        void systime_received_callback(const mavlink_message_t& msg) const;
 
         // Convenience methods -- takes a list of topics and subscribes/creates publishers to all of them
         // Makes it a lot easier to handle "pub" and "sub" lists from the control listener
         template<typename T>
         void fill_subscriber_list(
                 Json::Value& topics,
-                std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest,
-                std::map<std::string, uint8_t> *mapping,
+                std::vector<typename rclcpp::Subscription<T>::SharedPtr> &dest,
+                std::map<std::string, uint8_t> &mapping,
                 std::function<void(int, std::shared_ptr<T>)>
         );
 
         template<typename T>
         void fill_publisher_list(
                 Json::Value& topics,
-                std::vector<typename rclcpp::Publisher<T>::SharedPtr> *dest,
-                std::map<std::string, uint8_t> *mapping);
+                std::vector<typename rclcpp::Publisher<T>::SharedPtr> &dest,
+                std::map<std::string, uint8_t> &mapping);
 };
 
 #endif //DATALINK

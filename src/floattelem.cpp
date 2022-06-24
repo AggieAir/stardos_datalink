@@ -15,8 +15,8 @@ namespace floattelem {
 
         Message::Message() : Message(new uint8_t[BUFFER_SIZE] {0}) {}
 
-        Header Message::next_header() {
-                uint8_t *data8 = data_u8();
+        Header Message::next_header() const {
+                const uint8_t *data8 = data_u8();
                 Header head;
                 head.msg_type = data8[0];
                 head.msg_length = data8[1];
@@ -25,11 +25,11 @@ namespace floattelem {
                 return head;
         }
 
-        bool Message::has_next() {
+        bool Message::has_next() const {
                 return offset < BUFFER_SIZE && data_u8()[0] != 0;
         }
 
-        bool Message::is_empty() {
+        bool Message::is_empty() const {
                 return offset == 0 && data_u8()[0] == 0;
         }
 
@@ -56,7 +56,7 @@ namespace floattelem {
 
                 this->push_header(MSG_ID_HEARTBEAT, MSG_LENGTH_HEARTBEAT, topic_id);
 
-                uint16_t *data16 = data_u16();
+                uint16_t *data16 = data_u16_mut();
 
                 data16[2] = msg->state;
                 data16[3] = msg->errors;
@@ -79,7 +79,7 @@ namespace floattelem {
                         throw wrong_length_error(head.msg_length, MSG_LENGTH_HEARTBEAT);
                 }
 
-                uint16_t *data16 = data_u16();
+                const uint16_t *data16 = data_u16();
 
                 NodeHeartbeat ret = NodeHeartbeat();
 
@@ -108,7 +108,7 @@ namespace floattelem {
 
                 this->push_header(MSG_ID_CONTROL, length, topic_id);
 
-                char *datachar = this->data_char();
+                char *datachar = this->data_char_mut();
                 strncpy(datachar + MSG_BASE_LENGTH, options.c_str(), MAX_STRING_LENGTH);
 
                 finalize(length);
@@ -127,7 +127,7 @@ namespace floattelem {
                         throw wrong_length_error(head.msg_length, MSG_BASE_LENGTH + MAX_STRING_LENGTH);
                 }
 
-                char *datachar = this->data_char();
+                const char *datachar = this->data_char();
 
                 std::string ret = std::string(datachar + MSG_BASE_LENGTH, head.msg_length - MSG_BASE_LENGTH);
 
@@ -159,9 +159,9 @@ namespace floattelem {
 
                 this->push_header(MSG_ID_SYSTEM_STATUS, length, topic_id);
 
-                uint8_t *data8 = data_u8();
-                uint16_t *data16 = data_u16();
-                uint32_t *data32 = data_u32();
+                uint8_t *data8 = data_u8_mut();
+                uint16_t *data16 = data_u16_mut();
+                uint32_t *data32 = data_u32_mut();
 
                 data8[3] = msg->cpu_usage.size();
 
@@ -203,9 +203,9 @@ namespace floattelem {
                         throw wrong_length_error(head.msg_length, MSG_SYSTEM_STATUS_STATIC_LENGTH);
                 }
 
-                uint8_t *data8 = data_u8();
-                uint16_t *data16 = data_u16();
-                uint32_t *data32 = data_u32();
+                const uint8_t *data8 = data_u8();
+                const uint16_t *data16 = data_u16();
+                const uint32_t *data32 = data_u32();
 
                 SlimSystemStatus ret;
 
@@ -258,8 +258,8 @@ namespace floattelem {
 
                 this->push_header(MSG_ID_SYSTEM_CAPACITY, length, topic_id);
 
-                uint8_t *data8 = data_u8();
-                uint32_t *data32 = data_u32();
+                uint8_t *data8 = data_u8_mut();
+                uint32_t *data32 = data_u32_mut();
 
                 data8[3] = msg->disks_size_mb.size();
 
@@ -289,8 +289,8 @@ namespace floattelem {
                         throw wrong_length_error(head.msg_length, MSG_SYSTEM_CAPACITY_STATIC_LENGTH);
                 }
 
-                uint8_t *data8 = data_u8();
-                uint32_t *data32 = data_u32();
+                const uint8_t *data8 = data_u8();
+                const uint32_t *data32 = data_u32();
 
                 SystemCapacity ret;
 
@@ -311,20 +311,20 @@ namespace floattelem {
                 return ret;
         }
 
-        uint8_t *Message::get_data() {
+        const uint8_t *Message::get_data() const {
                 return data;
         }
 
-        uint8_t Message::get_offset() {
+        uint8_t Message::get_offset() const {
                 return offset;
         }
 
-        bool Message::check_space(uint8_t bytes) {
+        bool Message::check_space(uint8_t bytes) const {
                 return offset + offset_from_length(bytes) < BUFFER_SIZE;
         }
 
         void Message::push_header(uint8_t msg_type, uint8_t msg_length, uint8_t topic_id) {
-                uint8_t *data8 = data_u8();
+                uint8_t *data8 = data_u8_mut();
 
                 data8[0] = msg_type;
                 data8[1] = msg_length;
@@ -340,33 +340,49 @@ namespace floattelem {
                 this->offset += f;
         }
 
-        uint8_t * Message::data_u8() {
+        const uint8_t * Message::data_u8() const {
                 return (uint8_t*) data + offset;
         }
 
-        uint16_t * Message::data_u16() {
+        const uint16_t * Message::data_u16() const {
                 return (uint16_t*) data + offset / 2;
         }
 
-        uint32_t * Message::data_u32() {
+        const uint32_t * Message::data_u32() const {
                 return (uint32_t*) data + offset / 4;
         }
 
-        char * Message::data_char() {
+        const char * Message::data_char() const {
                 return (char*) data + offset;
         }
 
-        size_t Message::offset_from_length(size_t bytes) {
+        uint8_t * Message::data_u8_mut() {
+                return (uint8_t*) data + offset;
+        }
+
+        uint16_t * Message::data_u16_mut() {
+                return (uint16_t*) data + offset / 2;
+        }
+
+        uint32_t * Message::data_u32_mut() {
+                return (uint32_t*) data + offset / 4;
+        }
+
+        char * Message::data_char_mut() {
+                return (char*) data + offset;
+        }
+
+        size_t Message::offset_from_length(size_t bytes) const {
                 return 4 * ((bytes-1) / sizeof(float) + 1);
         }
 
-        std::runtime_error Message::wrong_id_error(uint8_t recv, uint8_t want) {
+        const std::runtime_error Message::wrong_id_error(uint8_t recv, uint8_t want) {
                 std::stringstream buffer = std::stringstream();
                 buffer << "Invalid Message ID " << (int) recv << "; expected " << (int) want;
                 return std::runtime_error(buffer.str());
         }
 
-        std::runtime_error Message::wrong_length_error(uint8_t recv, uint8_t want) {
+        const std::runtime_error Message::wrong_length_error(uint8_t recv, uint8_t want) {
                 std::stringstream buffer = std::stringstream();
                 buffer << "Reported message length "
                         << (int) recv

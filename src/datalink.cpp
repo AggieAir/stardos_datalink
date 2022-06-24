@@ -46,11 +46,11 @@ typedef floattelem::Message TelemMessage;
 typedef floattelem::Header TelemHeader;
 
 Datalink::Datalink(
-        std::string name,
+        const std::string& name,
         uint8_t sysid,
         uint8_t compid,
         bool heartbeat,
-        std::string connection_url,
+        const std::string& connection_url,
         uint8_t targetsysid,
         uint8_t targetcompid,
         bool autopilot_telemetry,
@@ -159,7 +159,7 @@ void Datalink::setup_autopilot_telemetry(bool activate) {
         }
 }
 
-void Datalink::setup_starcommand(std::string downlink_topic, std::string uplink_topic) {
+void Datalink::setup_starcommand(const std::string& downlink_topic, const std::string& uplink_topic) {
         starcommand_publisher = this->create_publisher<StarCommandDownlink>(downlink_topic, 10);
         starcommand_subscription = this->create_subscription<StarCommandUplink>(
                         uplink_topic,
@@ -207,12 +207,15 @@ void Datalink::load_mountpoints() {
 }
 
 void Datalink::send_buffered_message() {
-        send_telemetry(buffered_message);
+        if (send_telemetry(buffered_message) == MavlinkPassthrough::Result::Success) {
+                RCLCPP_INFO(this->get_logger(), "Resetting message buffer");
+                buffered_message.reset();
+        }
 }
 
-void Datalink::send_telemetry(TelemMessage &msg) {
+MavlinkPassthrough::Result Datalink::send_telemetry(const TelemMessage& msg) {
         if (msg.is_empty()) {
-                return;
+                return MavlinkPassthrough::Result::Unknown;
         }
 
         mavlink_message_t message;
@@ -235,10 +238,9 @@ void Datalink::send_telemetry(TelemMessage &msg) {
 
         if (result != MavlinkPassthrough::Result::Success) {
                 std::cout << "command send failed: " << result << "\n";
-        } else {
-                RCLCPP_INFO(this->get_logger(), "Resetting message buffer");
-                msg.reset();
         }
+
+        return result;
 }
 
 void Datalink::check_systems() {
@@ -407,28 +409,28 @@ void Datalink::control_callback(Control::SharedPtr msg) {
         RCLCPP_INFO(this->get_logger(), "Creating heartbeat subscribers");
         this->fill_subscriber_list<NodeHeartbeat>(
                 root["heartbeat"]["sub"],
-                &this->heartbeat_subscriptions,
-                &this->heartbeat_subscription_ids,
+                this->heartbeat_subscriptions,
+                this->heartbeat_subscription_ids,
                 std::bind(&Datalink::heartbeat_callback, this, _1, _2));
 
         RCLCPP_INFO(this->get_logger(), "Creating heartbeat publishers");
         this->fill_publisher_list<NodeHeartbeat>(
                 root["heartbeat"]["pub"],
-                &this->heartbeat_publishers,
-                &this->heartbeat_publisher_ids);
+                this->heartbeat_publishers,
+                this->heartbeat_publisher_ids);
 
         RCLCPP_INFO(this->get_logger(), "Creating control message subscribers");
         this->fill_subscriber_list<Control>(
                 root["control"]["sub"],
-                &this->signal_subscriptions,
-                &this->control_subscription_ids,
+                this->signal_subscriptions,
+                this->control_subscription_ids,
                 std::bind(&Datalink::signal_callback, this, _1, _2));
 
         RCLCPP_INFO(this->get_logger(), "Creating control message publishers");
         this->fill_publisher_list<Control>(
                 root["control"]["pub"],
-                &this->signal_publishers,
-                &this->control_publisher_ids
+                this->signal_publishers,
+                this->control_publisher_ids
         );
 
         if (this->get_parameter("starcommand").as_bool()) {
@@ -475,7 +477,7 @@ void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
         }
 }
 
-void Datalink::array_received_callback(mavlink_message_t msg) {
+void Datalink::array_received_callback(const mavlink_message_t& msg) {
         mavlink_logging_data_t * inner = new mavlink_logging_data_t();
         mavlink_msg_logging_data_decode(&msg, inner);
 
@@ -628,7 +630,7 @@ void Datalink::array_received_callback(mavlink_message_t msg) {
 // the way I do this is by copying all of the fields.
 // if we ever switch to using the PX4-ROS2 bridge, this is all getting replaced.
 
-void Datalink::gps_raw_received_callback(mavlink_message_t msg) {
+void Datalink::gps_raw_received_callback(const mavlink_message_t& msg) const {
         mavlink_gps_raw_int_t *gps = new mavlink_gps_raw_int_t();
         mavlink_msg_gps_raw_int_decode(&msg, gps);
 
@@ -655,7 +657,7 @@ void Datalink::gps_raw_received_callback(mavlink_message_t msg) {
         gps_position_publisher->publish(ros_message);
 }
 
-void Datalink::global_position_received_callback(mavlink_message_t msg) {
+void Datalink::global_position_received_callback(const mavlink_message_t& msg) const {
         mavlink_global_position_int_t *gps = new mavlink_global_position_int_t();
         mavlink_msg_global_position_int_decode(&msg, gps);
 
@@ -674,7 +676,7 @@ void Datalink::global_position_received_callback(mavlink_message_t msg) {
         global_position_publisher->publish(ros_message);
 }
 
-void Datalink::attitude_received_callback(mavlink_message_t msg) {
+void Datalink::attitude_received_callback(const mavlink_message_t& msg) const {
         mavlink_attitude_t *attitude = new mavlink_attitude_t();
         mavlink_msg_attitude_decode(&msg, attitude);
 
@@ -691,7 +693,7 @@ void Datalink::attitude_received_callback(mavlink_message_t msg) {
         attitude_publisher->publish(ros_message);
 }
 
-void Datalink::systime_received_callback(mavlink_message_t msg) {
+void Datalink::systime_received_callback(const mavlink_message_t& msg) const {
         mavlink_system_time_t *systime = new mavlink_system_time_t();
         mavlink_msg_system_time_decode(&msg, systime);
 
@@ -706,15 +708,15 @@ void Datalink::systime_received_callback(mavlink_message_t msg) {
 template<typename T>
 void Datalink::fill_subscriber_list(
                 Json::Value& topics,
-                std::vector<typename rclcpp::Subscription<T>::SharedPtr> *dest,
-                std::map<std::string, uint8_t> *mapping,
+                std::vector<typename rclcpp::Subscription<T>::SharedPtr> &dest,
+                std::map<std::string, uint8_t> &mapping,
                 std::function<void(int, std::shared_ptr<T>)> callback
 ) {
         int id = 0;
         for (auto v = topics.begin(); v != topics.end(); v++) {
                 std::string topic = v->asString();
 
-                dest->push_back(
+                dest.push_back(
                         this->create_subscription<T>(
                                 topic,
                                 10,
@@ -724,7 +726,7 @@ void Datalink::fill_subscriber_list(
                         )
                 );
                 
-                mapping->insert(std::make_pair(topic, id));
+                mapping.insert(std::make_pair(topic, id));
 
                 id++;
         }
@@ -733,20 +735,20 @@ void Datalink::fill_subscriber_list(
 template<typename T>
 void Datalink::fill_publisher_list(
                 Json::Value& topics,
-                std::vector<typename rclcpp::Publisher<T>::SharedPtr> *dest,
-                std::map<std::string, uint8_t> *mapping
+                std::vector<typename rclcpp::Publisher<T>::SharedPtr> &dest,
+                std::map<std::string, uint8_t> &mapping
 ) {
         int id = 0;
         for (auto v = topics.begin(); v != topics.end(); v++) {
                 std::string topic = v->asString();
-                dest->push_back(
+                dest.push_back(
                         this->create_publisher<T>(
                                 topic,
                                 10
                         )
                 );
                 
-                mapping->insert(std::make_pair(topic, id));
+                mapping.insert(std::make_pair(topic, id));
                 
                 id++;
         }

@@ -72,12 +72,12 @@ namespace floattelem {
                 Message();
 
                 // Returns a header object representing the next FloatTelem message
-                Header next_header();
+                Header next_header() const;
 
                 // Whether or not there is another FloatTelem message
-                bool has_next();
+                bool has_next() const;
                 // True if there's nothing to read in the message
-                bool is_empty();
+                bool is_empty() const;
                 // Clears all data and resets the offset
                 void reset();
 
@@ -104,12 +104,12 @@ namespace floattelem {
                 SystemCapacity pop_system_capacity_message();
 
                 // Get the floats themselves
-                uint8_t *get_data();
+                const uint8_t * get_data() const;
                 // Get the floats themselves
-                uint8_t get_offset();
+                uint8_t get_offset() const;
         private:
                 // True if `bytes` more bytes will fit in the buffer
-                bool check_space(uint8_t bytes);
+                bool check_space(uint8_t bytes) const;
                 // Add a new header at offset (this will take THREE bytes)
                 void push_header(uint8_t msg_type, uint8_t msg_length, uint8_t topic_id);
 
@@ -119,20 +119,29 @@ namespace floattelem {
                 void forward(int length);
 
                 // Get the data as a sequence of 232 unsigned 8-bit integers
-                inline uint8_t * data_u8();
+                inline uint8_t * data_u8_mut();
                 // Get the data as a sequence of 116 unsigned 16-bit integers
-                inline uint16_t * data_u16();
+                inline uint16_t * data_u16_mut();
                 // Get the data as a sequence of 116 unsigned 16-bit integers
-                inline uint32_t * data_u32();
+                inline uint32_t * data_u32_mut();
                 // Get the data as a sequence of 232 chars
-                inline char * data_char();
+                inline char * data_char_mut();
+
+                // Get the data as a sequence of 232 unsigned 8-bit integers
+                inline const uint8_t * data_u8() const;
+                // Get the data as a sequence of 116 unsigned 16-bit integers
+                inline const uint16_t * data_u16() const;
+                // Get the data as a sequence of 116 unsigned 16-bit integers
+                inline const uint32_t * data_u32() const;
+                // Get the data as a sequence of 232 chars
+                inline const char * data_char() const;
 
                 // The number of floats reqired to hold a number of bytes equal to `bytes`
-                inline size_t offset_from_length(size_t bytes);
+                inline size_t offset_from_length(size_t bytes) const;
                 // Get a runtime error for if the next message has an unexpected ID
-                static std::runtime_error wrong_id_error(uint8_t recv, uint8_t want);
+                static const std::runtime_error wrong_id_error(uint8_t recv, uint8_t want);
                 // Get a runtime error for if the next message has an unexpected length
-                static std::runtime_error wrong_length_error(uint8_t recv, uint8_t want);
+                static const std::runtime_error wrong_length_error(uint8_t recv, uint8_t want);
 
                 // the buffer itself
                 uint8_t *data;

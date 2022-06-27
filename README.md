@@ -102,10 +102,12 @@ serialization (read about [System Status Messages][#system-status-message] and
 
 Other options are modeled as [ROS2 parameters][ros2_params]. If you want to
 configure the node some other way, you'll first need the full list of
-parameters (run `ros2 param dump`). As of today (6 Jun 2022), these lists are:
+parameters (run `ros2 param dump`). As of 6 Jun 2022, these lists are as
+follows, but don't expect me to update them to be most recent. Use the commands
+on the page linked previously to get a list of all parameters.
 
 ```yaml
-/datalink_copilot:
+/copilot/datalink:
   ros__parameters:
     connection_url: udp://127.0.0.1:11001
     sysid: 1
@@ -116,7 +118,7 @@ parameters (run `ros2 param dump`). As of today (6 Jun 2022), these lists are:
     autopilot_telemetry: true
     use_sim_time: false
 
-/datalink_ground:
+/ground/datalink:
   ros__parameters:
     connection_url: udp://127.0.0.1:11002
     sysid: 190
@@ -143,7 +145,7 @@ will provide radio access to the aircraft.
 
 In a production environment, you won't be using UDP on the copilot, you'll be
 using UART. Change `connection_url` to a serial connection as described on
-[this page][mavlink_connecting]. If you don't know the baudrate, there are ways
+[this page][mavlink_connecting] (if you don't know the baudrate, there are ways
 to figure it out. Trial and error works, but I like to use the [mavlink
 console][mavlink_console], which provides [quite a few useful
 functions][px4_modules]. On the cubes, you can get to this interface by
@@ -183,7 +185,8 @@ it's only true on the copilot.
 These are just subscriptions to MAVLink messages that I forward to ROS2. Right
 now, I publish:
 
-* `gps_position` ([`GPS_RAW_INT`][mavlink_gps] messages)
+* `gps_raw` ([`GPS_RAW_INT`][mavlink_gps] messages)
+* `global_position` ([`GLOBAL_POSITION_INT`][mavlink_glob] messages)
 * `attitude` ([`ATTITUDE`][mavlink_att] messages)
 * `system_time` ([`SYSTEM_TIME`][mavlink_systime] messages)
 
@@ -213,9 +216,9 @@ by the control message. These messages are STARDOS `StarCommandUplink` and
 type encoded as JSON strings. They look like this:
 
 ```yaml
-type: "node" # NodeHeartbeat
-origin: "/aircraft/node_a"
-payload: >
+type: "node"               # Means payload has a NodeHeartbeat
+origin: "/aircraft/node_a" # Called "destination" for uplink messages
+payload: >                 # JSON string containing NodeHeartbeat
   {
     "state": 0,
     "requests": 55,
@@ -231,23 +234,32 @@ but expects it differently, so we publish it both ways.
 ## FloatTelem
 
 FloatTelem is the name I've given to the protocol that I invented to get
-telemetry over MAVLink. It hijacks the [`DEBUG_FLOAT_ARRAY`][mavlink_dfa]
-message.
+telemetry over MAVLink. It got its name from the
+[`DEBUG_FLOAT_ARRAY`][mavlink_dfa] message, which it used to hijack. Since then
+we've moved on to hijacking the [`LOGGING_DATA`][mavlink_log] message since PX4
+actually handles `DEBUG_FLOAT_ARRAY`s in a custom way before sending them
+across the radio.
 
 ### Layout of a Message
 
-In a `DEBUG_FLOAT_ARRAY` message, we have a buffer of 58 floats to deal with.
+In a `LOGGING_DATA` message, we have a buffer of 249 bytes to deal with.
 FloatTelem uses this buffer to store pack multiple small messages. Each message
 has a three-byte header, followed by a payload.
 
-To limit bandwidth, we try to send only one `DEBUG_FLOAT_ARRAY` per second. No
-message as of this point (7 Jun 2022) exceeds 16 bytes (4 floats) and some can
-be made as short as 3 bytes (1 float), but I'd say that 3 bytes is just about
-the median. So we can fit about 20 STARDOS messages into one MAVLink message.
+Ideally, to limit bandwidth, we would try to send only one `LOGGING_DATA` per
+second. Heartbeat messages are pretty light and so are Control messages, but
+System Status and System Capacity messages are significantly heavier and I
+cannot trust them to always fit cleanly together. To save on complexity we have
+two... channels, I suppose? One buffered message will send only Heartbeat and
+Control messages; the other will send System messages.
 
-These messages are literally just stacked end-to-end. At the next float
-boundary after one message finishes, if that byte is not `0x00`, or that byte
-is outside of the buffer, then a new message is presumed to be found there.
+When multiple FloatTelem messages are meant to be sent in a single
+`LOGGING_DATA`, these messages are literally just stacked end-to-end. At the
+next float boundary after one message finishes, if that byte is not `0x00`, or
+that byte is outside of the buffer, then a new message is presumed to be found
+there.
+
+Here's a hexdump of a possible message, which may clear things up:
 
 ```
 00000000: 010c 0200 0501 0000 02f3 0012 0209 0168
@@ -487,8 +499,10 @@ on slack (I'm Richard Snider btw) if you need help with this garbage.
 [mavlink_router]: https://github.com/mavlink-router/mavlink-router
 [mavlink_console]: https://docs.qgroundcontrol.com/master/en/analyze_view/mavlink_console.html
 [mavlink_gps]: https://mavlink.io/en/messages/common.html#GPS_RAW_INT
+[mavlink_glob]: https://mavlink.io/en/messages/common.html#GLOBAL_POSITION_INT
 [mavlink_att]: https://mavlink.io/en/messages/common.html#ATTITUDE
 [mavlink_dfa]: https://mavlink.io/en/messages/common.html#DEBUG_FLOAT_ARRAY
+[mavlink_log]: https://mavlink.io/en/messages/common.html#LOGGING_DATA
 [mavlink_systime]: https://mavlink.io/en/messages/common.html#SYSTEM_TIME
 [px4_modules]: https://docs.px4.io/master/en/modules/modules_main.html
 [sc_inter]: #starcommand-interoperability

@@ -25,7 +25,7 @@ find_package(jsoncpp REQUIRED)
 # add_executable(datalink_copilot src/copilot.cpp)
 # ament_target_dependencies(datalink_copilot rclcpp stardos_interfaces MAVSDK)
 
-add_executable(datalink_configured src/configured.cpp)
+add_executable(datalink_configured src/executables/configured.cpp)
 ament_target_dependencies(datalink_configured rclcpp stardos_interfaces MAVSDK)
 
 add_library(floattelem src/floattelem.cpp)

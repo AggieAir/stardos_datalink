@@ -1,0 +1,87 @@
+{
+	"type": "node_definition",
+	"content": { 
+	        "name": "datalink",
+	        "human_name": "Datalink",
+	        "description": "Connects the GCS to the aircraft and vice-versa, exposing ROS messages",
+	        "executable": "stardos_datalink/datalink_configured",
+	        "config_entries": [
+                        {
+                                "name": "sysid",
+                                "human_name": "Our System ID",
+                                "description": "MAVLink System ID to start up with. Must be between 0 and 255. Usually 1 for aircraft, 190 for ground station.",
+                                "type": 0,
+                                "choices": null,
+                                "required": true
+                        },
+                        {
+                                "name": "compid",
+                                "human_name": "Our Component ID",
+                                "description": "MAVLink Component ID to start up with. Must be between 0 and 255 and unique among all other components on the same system.",
+                                "type": 0,
+                                "choices": null,
+                                "required": true
+                        },
+                        {
+                                "name": "connection_url",
+                                "human_name": "Connection URL",
+                                "description": "URL for MAVLink to connect to. Can be tcp://[ip]:[port], udp://[ip]:port, or serial:///[device-file]:[baudrate]",
+                                "type": 2,
+                                "choices": null,
+                                "required": true
+                        },
+                        {
+                                "name": "targetsysid",
+                                "human_name": "Target System ID",
+                                "description": "MAVLink System ID to send packets to. Must be between 0 and 255. Usually 1 for aircraft, 190 for ground station.",
+                                "type": 0,
+                                "choices": null,
+                                "required": true
+                        },
+                        {
+                                "name": "targetcompid",
+                                "human_name": "Target Component ID",
+                                "description": "MAVLink Component ID to send packets to. Must be between 0 and 255 and unique among all other components on the same system.",
+                                "type": 0,
+                                "choices": null,
+                                "required": true
+                        },
+                        {
+                                "name": "autopilot_telemetry",
+                                "human_name": "Send Autopilot Telemetry?",
+                                "description": "Whether or not to listen to MAVLink messages containing information that some nodes may need and serialize them on ROS. Generally true for the copilot and false for the ground.",
+                                "type": 4,
+                                "choices": null,
+                                "required": true
+                        },
+                        {
+                                "name": "publish_system_status",
+                                "human_name": "Publish system status?",
+                                "description": "If true, listen for system status messages over MAVLink and serialize them onto ROS. If false, Listen for system status messages over ROS and serialize them onto MAVLink. Generally true for the ground station and false for the copilot.",
+                                "type": 4,
+                                "choices": null,
+                                "required": true
+                        },
+                        {
+                                "name": "extra_config_directory",
+                                "human_name": "Directory for extra configuration files",
+                                "description": "Direcory where the local copies of mountpoints.json and systems.json can be found. Should generally be [workspace]/src/stardos_datalink/files.",
+                                "type": 2,
+                                "choices": null,
+                                "required": true
+                        }
+                ],
+	        "errors": [
+	                {
+	                        "name": "cannot_create_outdir",
+	                        "description": "The program cannot create the directory to place the pictures.",
+	                        "set_status": 3
+	                },
+	                {
+	                        "name": "fs_full",
+	                        "description": "The filesystem to copy to is full.",
+	                        "set_status": 3
+	                }
+	        ]
+	}
+}

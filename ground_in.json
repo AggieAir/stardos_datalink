@@ -1,0 +1,23 @@
+{
+        "config": {
+                "sysid": 190,
+                "compid": 190,
+                "connection_url": "udp://127.0.0.1:11002",
+                "targetsysid": 1,
+                "targetcompid": 220,
+                "autopilot_telemetry": false,
+                "publish_system_status": true,
+                "heartbeat": {
+                        "sub": ["/gcs/topic_a", "/gcs/topic_b"],
+                        "pub": ["/air/topic_c", "/air/topic_d"]
+                },
+                "control": {
+                        "sub": ["/gcs/command_e", "/gcs/command_f"],
+                        "pub": ["/air/command_g", "/air/command_h"]
+                },
+                "starcommand": {
+                        "uplink": "/gcs/star_command_uplink",
+                        "downlink": "/gcs/star_command_downlink"
+                }
+        }
+}

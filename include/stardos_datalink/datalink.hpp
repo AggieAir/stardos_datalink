@@ -3,6 +3,7 @@
 
 #include <functional>
 
+#include <istream>
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/mavlink_types.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
@@ -40,15 +41,16 @@ class Datalink: public rclcpp::Node
 public:
 	Datalink(
                 const std::string& name,
-                uint8_t sysid,
-                uint8_t compid,
-                bool heartbeat,
-                const std::string& connection_url,
-                uint8_t targetsysid,
-                uint8_t targetcompid,
-                bool autopilot_telemetry,
-                bool starcommand,
-                bool publish_system_status
+                // uint8_t sysid,
+                // uint8_t compid,
+                // bool heartbeat,
+                // const std::string& connection_url,
+                // uint8_t targetsysid,
+                // uint8_t targetcompid,
+                // bool autopilot_telemetry,
+                // bool starcommand,
+                // bool publish_system_status,
+                const Json::Value& config
         );
 
 private:
@@ -59,6 +61,8 @@ private:
 
         // ROS node name
         std::string name;
+        // Configuration JSON
+        Json::Value config;
         // Instance of MAVSDK -- this models the connection
   	mavsdk::Mavsdk dc;
         // Reference to autopilot system
@@ -69,6 +73,14 @@ private:
         // DEBUG_FLOAT_ARRAY Array ID
         uint16_t array_id;
 
+        // Where are we
+        uint8_t sysid;
+        uint8_t compid;
+
+        // Where to send telemetry messages to
+        uint8_t targetsysid;
+        uint8_t targetcompid;
+
         // These allow us to pass messages directly to the systems
 	std::shared_ptr<mavsdk::MavlinkPassthrough> autopilot_passthrough;
 	std::shared_ptr<mavsdk::MavlinkPassthrough> target_passthrough;
@@ -77,9 +89,6 @@ private:
         rclcpp::TimerBase::SharedPtr get_system_timer;
         // Runs every second; looks for systems
         rclcpp::TimerBase::SharedPtr send_telemetry_timer;
-
-        // Subscribes to notifications from the STARDOS control node
-        rclcpp::Subscription<Control>::SharedPtr control_subscription;
 
         // Which topics to listen to in order to forward over mavlink
         // * for heartbeats
@@ -138,8 +147,10 @@ private:
 	void configure();
         // Bind to the connection_url
 	void connect();
+        // Read configuration (usually passed on stdin)
+        void setup_floattelem();
         // Setup autopilot telemetry
-        void setup_autopilot_telemetry(bool activated);
+        void setup_autopilot_telemetry();
         // Setup starcommand downlink and uplink
         void setup_starcommand(const std::string& downlink_topic, const std::string& uplink_topic);
         // Load the properties of each system and the status messages they publish

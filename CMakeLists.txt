@@ -19,11 +19,14 @@ find_package(stardos_interfaces REQUIRED)
 find_package(MAVSDK REQUIRED)
 find_package(jsoncpp REQUIRED)
 
-add_executable(datalink_ground src/ground.cpp)
-ament_target_dependencies(datalink_ground rclcpp stardos_interfaces MAVSDK)
+# add_executable(datalink_ground src/ground.cpp)
+# ament_target_dependencies(datalink_ground rclcpp stardos_interfaces MAVSDK)
+# 
+# add_executable(datalink_copilot src/copilot.cpp)
+# ament_target_dependencies(datalink_copilot rclcpp stardos_interfaces MAVSDK)
 
-add_executable(datalink_copilot src/copilot.cpp)
-ament_target_dependencies(datalink_copilot rclcpp stardos_interfaces MAVSDK)
+add_executable(datalink_configured src/configured.cpp)
+ament_target_dependencies(datalink_configured rclcpp stardos_interfaces MAVSDK)
 
 add_library(floattelem src/floattelem.cpp)
 ament_target_dependencies(floattelem stardos_interfaces)
@@ -33,21 +36,28 @@ ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK)
 
 include_directories(include/stardos_datalink)
 
-target_link_libraries(datalink_ground
-	datalink
-        floattelem
-	jsoncpp_lib
-	MAVSDK::mavsdk)
+# target_link_libraries(datalink_ground
+# 	datalink
+#         floattelem
+# 	jsoncpp_lib
+# 	MAVSDK::mavsdk)
+# 
+# target_link_libraries(datalink_copilot
+# 	datalink
+#         floattelem
+# 	jsoncpp_lib
+# 	MAVSDK::mavsdk)
 
-target_link_libraries(datalink_copilot
+target_link_libraries(datalink_configured
 	datalink
         floattelem
 	jsoncpp_lib
 	MAVSDK::mavsdk)
 
 install(TARGETS
-	datalink_ground
-	datalink_copilot
+        # datalink_ground
+	# datalink_copilot
+        datalink_configured
 	DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)

@@ -81,6 +81,9 @@ private:
         uint8_t targetsysid;
         uint8_t targetcompid;
 
+        // Where to look for additional configuration files
+        std::string extra_config_directory;
+
         // These allow us to pass messages directly to the systems
 	std::shared_ptr<mavsdk::MavlinkPassthrough> autopilot_passthrough;
 	std::shared_ptr<mavsdk::MavlinkPassthrough> target_passthrough;

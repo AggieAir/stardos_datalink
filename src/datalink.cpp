@@ -95,14 +95,18 @@ void Datalink::configure() {
         Json::Value compidval = config["compid"];
         Json::Value targetsysidval = config["targetsysid"];
         Json::Value targetcompidval = config["targetcompid"];
-        if (!sysidval.isUInt() ||
+        Json::Value filesval = config["extra_config_directory"];
+
+        if (
+                        !sysidval.isUInt() ||
                         sysidval.asUInt() > UINT8_MAX ||
                         !compidval.isUInt() ||
                         compidval.asUInt() > UINT8_MAX ||
                         !targetsysidval.isUInt() ||
                         targetsysidval.asUInt() > UINT8_MAX ||
                         !targetcompidval.isUInt() ||
-                        targetcompidval.asUInt() > UINT8_MAX
+                        targetcompidval.asUInt() > UINT8_MAX ||
+                        !filesval.isString()
         ) {
                 RCLCPP_ERROR(this->get_logger(), "System and Component IDs must be ints within [0, 255]");
                 throw std::exception();
@@ -112,6 +116,7 @@ void Datalink::configure() {
         compid = compidval.asUInt();
         targetsysid = targetsysidval.asUInt();
         targetcompid = targetcompidval.asUInt();
+        extra_config_directory = filesval.asString();
 
         RCLCPP_INFO(
                 this->get_logger(),
@@ -159,7 +164,7 @@ void Datalink::setup_starcommand(const std::string& downlink_topic, const std::s
 }
 
 void Datalink::load_system_statuses() {
-        std::ifstream file("systems.json");
+        std::ifstream file(extra_config_directory + "/systems.json");
         Json::Value root;
 
         file >> root;
@@ -184,7 +189,7 @@ void Datalink::load_system_statuses() {
 }
 
 void Datalink::load_mountpoints() {
-        std::ifstream file("mountpoints.json");
+        std::ifstream file(extra_config_directory + "/mountpoints.json");
         Json::Value root;
 
         file >> root;

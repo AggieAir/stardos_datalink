@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "nodes/floattelem_bridge.hpp"
+#include "nodes/autopilot_bridge.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include "datalink.hpp"
@@ -32,7 +33,7 @@ int main(int argc, char *argv[]) {
                 return 1;
         }
 
-        std::vector<DatalinkScope> scopes{FLOATTELEM_BRIDGE};
+        std::vector<DatalinkScope> scopes{FLOATTELEM_BRIDGE, AUTOPILOT_BRIDGE};
 
         for (auto s : scopes) {
                 pid_t p = fork();
@@ -43,6 +44,9 @@ int main(int argc, char *argv[]) {
                         switch (s) {
                         case FLOATTELEM_BRIDGE:
                                 rclcpp::spin(std::make_shared<FloatTelemBridge>("datalink_ftb", config));
+                                break;
+                        case AUTOPILOT_BRIDGE:
+                                rclcpp::spin(std::make_shared<AutopilotBridge>("datalink_apb", config));
                                 break;
                         default:
                                 break;

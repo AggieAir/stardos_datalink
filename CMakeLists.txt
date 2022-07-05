@@ -31,7 +31,8 @@ ament_target_dependencies(datalink_configured rclcpp stardos_interfaces MAVSDK)
 add_library(datalink
         src/floattelem.cpp
         src/nodes/link_node.cpp
-        src/nodes/floattelem_bridge.cpp)
+        src/nodes/floattelem_bridge.cpp
+        src/nodes/autopilot_bridge.cpp)
 ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK)
 
 include_directories(include/stardos_datalink)

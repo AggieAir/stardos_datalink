@@ -28,10 +28,10 @@ find_package(jsoncpp REQUIRED)
 add_executable(datalink_configured src/executables/configured.cpp)
 ament_target_dependencies(datalink_configured rclcpp stardos_interfaces MAVSDK)
 
-add_library(floattelem src/floattelem.cpp)
-ament_target_dependencies(floattelem stardos_interfaces)
-
-add_library(datalink src/datalink.cpp)
+add_library(datalink
+        src/floattelem.cpp
+        src/nodes/link_node.cpp
+        src/nodes/floattelem_bridge.cpp)
 ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK)
 
 include_directories(include/stardos_datalink)
@@ -50,7 +50,6 @@ include_directories(include/stardos_datalink)
 
 target_link_libraries(datalink_configured
 	datalink
-        floattelem
 	jsoncpp_lib
 	MAVSDK::mavsdk)
 

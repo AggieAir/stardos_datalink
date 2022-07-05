@@ -24,7 +24,7 @@
 #include "stardos_interfaces/msg/star_command_downlink.hpp"
 #include "stardos_interfaces/msg/star_command_uplink.hpp"
 
-#include "floattelem.hpp"
+#include "../floattelem.hpp"
 
 using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::Control;
@@ -44,7 +44,7 @@ public:
                 const Json::Value& config
         );
 
-private:
+protected:
         /* ************************ *
          * VARIABLE ZONE            *
          * There are a lot of these *
@@ -88,27 +88,71 @@ private:
         // Check to see if there is another system; connect if so
         virtual void check_systems();
 
-        virtual void target_passthrough_found_callback() = 0;
+        // Send a mavlink message
+        virtual mavsdk::MavlinkPassthrough::Result send_mavlink(mavlink_message_t& msg);
 
         /* ********************** *
          * ENTERING CALLBACK LAND *
          * ********************** */
 
+        // This is called immediately after target is found and a MavlinkPassthrough is created for it
+        virtual void target_passthrough_found_callback() = 0;
+
         // Convenience methods -- takes a list of topics and subscribes/creates publishers to all of them
         // Makes it a lot easier to handle "pub" and "sub" lists from the control listener
         template<typename T>
         void fill_subscriber_list(
-                Json::Value& topics,
-                std::vector<typename rclcpp::Subscription<T>::SharedPtr> &dest,
-                std::map<std::string, uint8_t> &mapping,
-                std::function<void(int, std::shared_ptr<T>)>
-        );
+                        Json::Value& topics,
+                        std::vector<typename rclcpp::Subscription<T>::SharedPtr> &dest,
+                        std::map<std::string, uint8_t> &mapping,
+                        std::function<void(int, std::shared_ptr<T>)> callback
+        ) {
+                int id = 0;
+                for (auto v = topics.begin(); v != topics.end(); v++) {
+                        std::string topic = v->asString();
+
+                        RCLCPP_DEBUG(this->get_logger(), "subscribing to %s", topic.c_str());
+
+                        dest.push_back(
+                                this->create_subscription<T>(
+                                        topic,
+                                        10,
+                                        [this, id, callback] (std::shared_ptr<T> msg) {
+                                                callback(id, msg);
+                                        }
+                                )
+                        );
+                        
+                        mapping.insert(std::make_pair(topic, id));
+
+                        id++;
+                }
+        }
 
         template<typename T>
         void fill_publisher_list(
-                Json::Value& topics,
-                std::vector<typename rclcpp::Publisher<T>::SharedPtr> &dest,
-                std::map<std::string, uint8_t> &mapping);
+                        Json::Value& topics,
+                        std::vector<typename rclcpp::Publisher<T>::SharedPtr> &dest,
+                        std::map<std::string, uint8_t> &mapping
+        ) {
+                int id = 0;
+                for (auto v = topics.begin(); v != topics.end(); v++) {
+                        std::string topic = v->asString();
+
+                        RCLCPP_DEBUG(this->get_logger(), "subscribing to %s", topic.c_str());
+
+                        dest.push_back(
+                                this->create_publisher<T>(
+                                        topic,
+                                        10
+                                )
+                        );
+                        
+                        mapping.insert(std::make_pair(topic, id));
+                        
+                        id++;
+                }
+        }
 };
 
 #endif //DATALINK

@@ -10,7 +10,7 @@
 #define COMP_ID_GCS      190
 
 typedef enum __DatalinkScope {
-        SERVER = 0,
+        SERVER = 230,
         FLOATTELEM_BRIDGE = 191,
         AUTOPILOT_BRIDGE = 25,
         STARCOMMAND_SERIALIZER = 26,

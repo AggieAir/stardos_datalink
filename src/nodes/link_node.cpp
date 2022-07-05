@@ -2,6 +2,7 @@
 #include <functional>
 #include <iostream>
 #include <chrono>
+#include <sstream>
 #include <string.h>
 #include <math.h>
 #include <string>
@@ -24,7 +25,7 @@
 #include "stardos_interfaces/msg/star_command_downlink.hpp"
 #include "stardos_interfaces/msg/star_command_uplink.hpp"
 
-#include "link_node.hpp"
+#include "nodes/link_node.hpp"
 #include "floattelem.hpp"
 
 using namespace mavsdk;
@@ -52,16 +53,11 @@ LinkNode::LinkNode(
         name{name},
         config{config}
 {
-        ParameterDescriptor ro;
-        ro.read_only = true;
-
+        RCLCPP_INFO(this->get_logger(), "Configuring MAVLink and connecting");
 	configure();
 	connect();
 
-        RCLCPP_INFO(this->get_logger(), "Creating telemetry publisher");
-
-        RCLCPP_INFO(this->get_logger(), "Binding timer callback");
-
+        RCLCPP_INFO(this->get_logger(), "Beginning to check for systems");
         // Yes, the callback to check for the target system is just on a timer.
         // Yes, I know that Mavsdk::subscribe_on_system_added exists.
         // I could not get it to work consistently.
@@ -141,56 +137,16 @@ void LinkNode::check_systems() {
         }
 }
 
-template<typename T>
-void LinkNode::fill_subscriber_list(
-                Json::Value& topics,
-                std::vector<typename rclcpp::Subscription<T>::SharedPtr> &dest,
-                std::map<std::string, uint8_t> &mapping,
-                std::function<void(int, std::shared_ptr<T>)> callback
-) {
-        int id = 0;
-        for (auto v = topics.begin(); v != topics.end(); v++) {
-                std::string topic = v->asString();
+MavlinkPassthrough::Result LinkNode::send_mavlink(mavlink_message_t& msg) {
+        MavlinkPassthrough::Result result = target_passthrough->send_message(msg);
 
-                RCLCPP_DEBUG(this->get_logger(), "subscribing to %s", topic.c_str());
-
-                dest.push_back(
-                        this->create_subscription<T>(
-                                topic,
-                                10,
-                                [this, id, callback] (std::shared_ptr<T> msg) {
-                                        callback(id, msg);
-                                }
-                        )
-                );
-                
-                mapping.insert(std::make_pair(topic, id));
-
-                id++;
+        if (result != MavlinkPassthrough::Result::Success) {
+                // this is the best way to turn this into a string
+                // i hate it but it's what's gonna have to happen
+                std::ostringstream ss;
+                ss << result;
+                RCLCPP_WARN(this->get_logger(), "command send failed: %d", ss.str().c_str());
         }
-}
 
-template<typename T>
-void LinkNode::fill_publisher_list(
-                Json::Value& topics,
-                std::vector<typename rclcpp::Publisher<T>::SharedPtr> &dest,
-                std::map<std::string, uint8_t> &mapping
-) {
-        int id = 0;
-        for (auto v = topics.begin(); v != topics.end(); v++) {
-                std::string topic = v->asString();
-
-                RCLCPP_DEBUG(this->get_logger(), "subscribing to %s", topic.c_str());
-
-                dest.push_back(
-                        this->create_publisher<T>(
-                                topic,
-                                10
-                        )
-                );
-                
-                mapping.insert(std::make_pair(topic, id));
-                
-                id++;
-        }
+        return result;
 }

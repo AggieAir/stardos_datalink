@@ -48,7 +48,7 @@ typedef floattelem::Header TelemHeader;
 AutopilotBridge::AutopilotBridge(
         const std::string& name,
         const Json::Value& config
-) : LinkNode(name, config) {
+) : BasicDatalinkNode(name, config) {
         setup_autopilot_telemetry();
 }
 

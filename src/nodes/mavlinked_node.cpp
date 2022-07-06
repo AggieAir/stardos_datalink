@@ -1,58 +1,15 @@
-#include <fstream>
-#include <functional>
-#include <iostream>
-#include <chrono>
-#include <sstream>
-#include <string.h>
-#include <math.h>
-#include <string>
-#include <climits>
-
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
-#include <utility>
 
-#include "rclcpp/publisher.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "rclcpp/timer.hpp"
-#include "stardos_interfaces/msg/node_heartbeat.hpp"
-#include "stardos_interfaces/msg/control.hpp"
-#include "stardos_interfaces/msg/global_position.hpp"
-#include "stardos_interfaces/msg/gps_position.hpp"
-#include "stardos_interfaces/msg/attitude.hpp"
-#include "stardos_interfaces/msg/system_time.hpp"
-#include "stardos_interfaces/msg/system_status.hpp"
-#include "stardos_interfaces/msg/star_command_downlink.hpp"
-#include "stardos_interfaces/msg/star_command_uplink.hpp"
 
-#include "nodes/link_node.hpp"
+#include "nodes/mavlinked_node.hpp"
 #include "floattelem.hpp"
 
 using namespace mavsdk;
 using namespace std::literals::chrono_literals;
-using namespace std::placeholders;
 
-using rcl_interfaces::msg::ParameterDescriptor;
-using stardos_interfaces::msg::NodeHeartbeat;
-using stardos_interfaces::msg::Control;
-using stardos_interfaces::msg::GlobalPosition;
-using stardos_interfaces::msg::GPSPosition;
-using stardos_interfaces::msg::Attitude;
-using stardos_interfaces::msg::SystemTime;
-using stardos_interfaces::msg::SystemStatus;
-using stardos_interfaces::msg::StarCommandDownlink;
-using stardos_interfaces::msg::StarCommandUplink;
-
-typedef floattelem::Message TelemMessage;
-typedef floattelem::Header TelemHeader;
-
-LinkNode::LinkNode(
-        const std::string& name,
-        const Json::Value& config
-) : Node(name),
-        name{name},
-        config{config}
-{
+MAVLinkedNode::MAVLinkedNode() {
         RCLCPP_INFO(this->get_logger(), "Configuring MAVLink and connecting");
 	configure();
 	connect();
@@ -61,10 +18,10 @@ LinkNode::LinkNode(
         // Yes, the callback to check for the target system is just on a timer.
         // Yes, I know that Mavsdk::subscribe_on_system_added exists.
         // I could not get it to work consistently.
-	get_system_timer = this->create_wall_timer(1000ms, std::bind(&LinkNode::check_systems, this));
+	get_system_timer = this->create_wall_timer(1000ms, std::bind(&MAVLinkedNode::check_systems, this));
 }
 
-void LinkNode::configure() {
+void MAVLinkedNode::configure() {
         Json::Value sysidval = config["sysid"];
         Json::Value compidval = config["compid"];
         Json::Value targetsysidval = config["targetsysid"];
@@ -110,7 +67,7 @@ void LinkNode::configure() {
         );
 }
 
-void LinkNode::connect() {
+void MAVLinkedNode::connect() {
         Json::Value urlval = config["connection_url"];
         if (!urlval.isString()) {
                 RCLCPP_ERROR(this->get_logger(), "URL must be a string");
@@ -119,7 +76,7 @@ void LinkNode::connect() {
         dc.add_any_connection(config["connection_url"].asString());
 }
 
-void LinkNode::check_systems() {
+void MAVLinkedNode::check_systems() {
         for (auto s : dc.systems()) {
                 if (s->get_system_id() == targetsysid && target == nullptr) {
                         // the target for float telemetry
@@ -137,7 +94,7 @@ void LinkNode::check_systems() {
         }
 }
 
-MavlinkPassthrough::Result LinkNode::send_mavlink(mavlink_message_t& msg) {
+MavlinkPassthrough::Result MAVLinkedNode::send_mavlink(mavlink_message_t& msg) {
         MavlinkPassthrough::Result result = target_passthrough->send_message(msg);
 
         if (result != MavlinkPassthrough::Result::Success) {

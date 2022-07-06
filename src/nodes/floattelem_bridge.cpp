@@ -1,46 +1,23 @@
-#include <fstream>
-#include <functional>
-#include <iostream>
-#include <chrono>
-#include <string.h>
-#include <math.h>
-#include <string>
 #include <climits>
+
+#include <mavsdk/mavsdk.h>
+#include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/mavlink_types.h>
+#include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
+
+#include "rclcpp/rclcpp.hpp"
 
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
-#include <utility>
 
-#include "rclcpp/publisher.hpp"
-#include "rclcpp/rclcpp.hpp"
-#include "rclcpp/timer.hpp"
-#include "stardos_interfaces/msg/node_heartbeat.hpp"
-#include "stardos_interfaces/msg/control.hpp"
-#include "stardos_interfaces/msg/global_position.hpp"
-#include "stardos_interfaces/msg/gps_position.hpp"
-#include "stardos_interfaces/msg/attitude.hpp"
-#include "stardos_interfaces/msg/system_time.hpp"
-#include "stardos_interfaces/msg/system_status.hpp"
-#include "stardos_interfaces/msg/star_command_downlink.hpp"
-#include "stardos_interfaces/msg/star_command_uplink.hpp"
-
-#include "floattelem.hpp"
 #include "nodes/floattelem_bridge.hpp"
 
 using namespace mavsdk;
 using namespace std::literals::chrono_literals;
 using namespace std::placeholders;
 
-using rcl_interfaces::msg::ParameterDescriptor;
 using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::Control;
-using stardos_interfaces::msg::GlobalPosition;
-using stardos_interfaces::msg::GPSPosition;
-using stardos_interfaces::msg::Attitude;
-using stardos_interfaces::msg::SystemTime;
 using stardos_interfaces::msg::SystemStatus;
-using stardos_interfaces::msg::StarCommandDownlink;
-using stardos_interfaces::msg::StarCommandUplink;
 
 typedef floattelem::Message TelemMessage;
 typedef floattelem::Header TelemHeader;
@@ -48,7 +25,7 @@ typedef floattelem::Header TelemHeader;
 FloatTelemBridge::FloatTelemBridge(
         const std::string& name,
         const Json::Value& config
-) : LinkNode(name, config) {
+) : BasicDatalinkNode(name, config) {
         setup_floattelem();
 }
 
@@ -57,30 +34,6 @@ void FloatTelemBridge::send_buffered_message() {
                 RCLCPP_INFO(this->get_logger(), "Resetting message buffer");
                 buffered_message.reset();
         }
-}
-
-MavlinkPassthrough::Result FloatTelemBridge::send_telemetry(const TelemMessage& msg) {
-        if (msg.is_empty()) {
-                return MavlinkPassthrough::Result::Unknown;
-        }
-
-        mavlink_message_t message;
-
-        if (array_id == UINT16_MAX) array_id = 0;
-
-        mavlink_msg_logging_data_pack(
-                target_passthrough->get_our_sysid(), // SystemID
-                target_passthrough->get_our_compid(), //My comp ID
-                &message, //Message reference
-                targetsysid,
-                targetcompid,
-                array_id++,
-                msg.get_offset(),
-                0,
-                msg.get_data()
-        );
-
-        return send_mavlink(message);
 }
 
 void FloatTelemBridge::target_passthrough_found_callback() {
@@ -330,5 +283,19 @@ void FloatTelemBridge::array_received_callback(const mavlink_message_t& msg) {
                                 "Unrecognized message ID: %d",
                                 head.msg_type);
                 }
+        }
+}
+
+void FloatTelemBridge::add_system(const uint8_t id, const std::string& name, const std::string& topic) {
+        if (config["publish_system_status"].asBool()) {
+                system_status_publishers[id] = this->create_publisher<SystemStatus>(topic, 10);
+        } else {
+                system_status_subscriptions[id] = this->create_subscription<SystemStatus>(
+                        topic,
+                        10,
+                        [this, id] (SystemStatus::SharedPtr msg) {
+                                this->system_status_callback(id, msg);
+                        }
+                );
         }
 }

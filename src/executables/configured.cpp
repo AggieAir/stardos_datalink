@@ -3,6 +3,7 @@
 #include <memory>
 #include <sys/types.h>
 #include <unistd.h>
+#include <chrono>
 
 #include "nodes/floattelem_bridge.hpp"
 #include "nodes/autopilot_bridge.hpp"
@@ -13,6 +14,8 @@
 
 int main(int argc, char *argv[]) {
         rclcpp::init(argc, argv);
+        
+        setsid();
 
         Json::Value root, config;
 
@@ -52,5 +55,9 @@ int main(int argc, char *argv[]) {
                                 break;
                         }
                 }
+        }
+
+        while (true) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
 }

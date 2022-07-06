@@ -25,7 +25,7 @@
 #include "stardos_interfaces/msg/star_command_uplink.hpp"
 
 #include "../floattelem.hpp"
-#include "./link_node.hpp"
+#include "./mavlinked_node.hpp"
 
 using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::Control;
@@ -37,8 +37,7 @@ using stardos_interfaces::msg::SystemStatus;
 using stardos_interfaces::msg::StarCommandDownlink;
 using stardos_interfaces::msg::StarCommandUplink;
 
-class AutopilotBridge: public LinkNode
-{
+class AutopilotBridge: virtual public MAVLinkedNode {
 public:
 	AutopilotBridge(
                 const std::string& name,

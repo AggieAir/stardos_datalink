@@ -7,6 +7,7 @@ BasicDatalinkNode::BasicDatalinkNode(
         name{name},
         config{config}
 {
+        RCLCPP_INFO(this->get_logger(), "Initializing basic datalink node");
         Json::Value ecd = config["extra_config_directory"];
         if (ecd.isString()) {
                 extra_config_directory = ecd.asString();

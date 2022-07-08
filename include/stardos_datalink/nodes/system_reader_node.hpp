@@ -1,19 +1,15 @@
 #ifndef SYSTEM_READER_NODE_HPP
 #define SYSTEM_READER_NODE_HPP
+#include <functional>
 #include <stdint.h>
 
+#include "../datalink_util.hpp"
 #include "mavlinked_node.hpp"
 
 class SystemReaderNode : virtual public MAVLinkedNode {
-public:
-        SystemReaderNode();
-
 protected:
         // Load the mountpoint enum
-        void load_systems();
-
-        // Callback to call when we add a system
-        virtual void add_system(const uint8_t id, const std::string& name, const std::string& topic) = 0;
+        void load_systems(std::function<void(const DatalinkSystem&)>);
 };
 
 #endif

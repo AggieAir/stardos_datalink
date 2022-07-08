@@ -1,38 +1,20 @@
 #ifndef STARCOMMAND_SERIALIZER_HPP
 #define STARCOMMAND_SERIALIZER_HPP
 
-#include <functional>
-
-#include <istream>
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/mavlink_types.h>
-#include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 
-#include <jsoncpp/json/json.h>
-#include <jsoncpp/json/value.h>
-
-#include "floattelem_sender.hpp"
-#include "rclcpp/publisher.hpp"
-#include "rclcpp/rclcpp.hpp"
-#include "rclcpp/timer.hpp"
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 #include "stardos_interfaces/msg/control.hpp"
-#include "stardos_interfaces/msg/global_position.hpp"
-#include "stardos_interfaces/msg/gps_position.hpp"
-#include "stardos_interfaces/msg/attitude.hpp"
-#include "stardos_interfaces/msg/system_time.hpp"
 #include "stardos_interfaces/msg/system_status.hpp"
 #include "stardos_interfaces/msg/star_command_downlink.hpp"
 #include "stardos_interfaces/msg/star_command_uplink.hpp"
 
+#include "./floattelem_sender.hpp"
 #include "./system_reader_node.hpp"
 
 using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::Control;
-using stardos_interfaces::msg::GlobalPosition;
-using stardos_interfaces::msg::GPSPosition;
-using stardos_interfaces::msg::Attitude;
-using stardos_interfaces::msg::SystemTime;
 using stardos_interfaces::msg::SystemStatus;
 using stardos_interfaces::msg::StarCommandDownlink;
 using stardos_interfaces::msg::StarCommandUplink;
@@ -80,6 +62,8 @@ private:
          * ENTERING CALLBACK LAND *
          * ********************** */
 
+        void target_passthrough_found_callback() override;
+
         // Runs every time we get a heartbeat
         void heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg);
         // Runs every time we get a control signal
@@ -90,7 +74,7 @@ private:
         void uplink_callback(StarCommandUplink::SharedPtr msg);
 
         // Callback to call when we add a system
-        void add_system(const uint8_t id, const std::string& name, const std::string& topic) override;
+        void add_system(const DatalinkSystem& sys);
 };
 
 #endif //STARCOMMAND_SERIALIZER_HPP

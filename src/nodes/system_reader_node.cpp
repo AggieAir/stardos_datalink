@@ -2,21 +2,18 @@
 
 #include "nodes/system_reader_node.hpp"
 
-SystemReaderNode::SystemReaderNode() {
-        load_systems();
-}
-
-void SystemReaderNode::load_systems() {
+void SystemReaderNode::load_systems(std::function<void(const DatalinkSystem&)> callback) {
         std::ifstream file(extra_config_directory + "/systems.json");
         Json::Value root;
 
         file >> root;
 
         for (auto v = root.begin(); v != root.end(); v++) {
-                uint8_t     id    = (*v)["id"].asInt();
-                std::string name  = (*v)["name"].asString();
-                std::string topic = (*v)["topic"].asString();
+                DatalinkSystem sys;
+                sys.id    = (uint8_t) ((*v)["id"].asInt());
+                sys.name  = (*v)["name"].asString();
+                sys.topic = (*v)["topic"].asString();
 
-                add_system(id, name, topic);
+                callback(sys);
         }
 }

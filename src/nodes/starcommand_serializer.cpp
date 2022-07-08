@@ -1,30 +1,11 @@
-#include <memory>
-#include <fstream>
-#include <functional>
-#include <iostream>
-#include <chrono>
-#include <sstream>
-#include <string.h>
-#include <math.h>
-#include <string>
-#include <climits>
+#include <mavsdk/mavsdk.h>
+#include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/mavlink_types.h>
+#include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 
-#include <jsoncpp/json/json.h>
-#include <jsoncpp/json/value.h>
-#include <utility>
-
-#include "rclcpp/publisher.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "rclcpp/timer.hpp"
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 #include "stardos_interfaces/msg/control.hpp"
-#include "stardos_interfaces/msg/global_position.hpp"
-#include "stardos_interfaces/msg/gps_position.hpp"
-#include "stardos_interfaces/msg/attitude.hpp"
-#include "stardos_interfaces/msg/system_time.hpp"
 #include "stardos_interfaces/msg/system_status.hpp"
-#include "stardos_interfaces/msg/star_command_downlink.hpp"
-#include "stardos_interfaces/msg/star_command_uplink.hpp"
 
 #include "nodes/starcommand_serializer.hpp"
 #include "floattelem.hpp"
@@ -32,17 +13,6 @@
 using namespace mavsdk;
 using namespace std::literals::chrono_literals;
 using namespace std::placeholders;
-
-using rcl_interfaces::msg::ParameterDescriptor;
-using stardos_interfaces::msg::NodeHeartbeat;
-using stardos_interfaces::msg::Control;
-using stardos_interfaces::msg::GlobalPosition;
-using stardos_interfaces::msg::GPSPosition;
-using stardos_interfaces::msg::Attitude;
-using stardos_interfaces::msg::SystemTime;
-using stardos_interfaces::msg::SystemStatus;
-using stardos_interfaces::msg::StarCommandDownlink;
-using stardos_interfaces::msg::StarCommandUplink;
 
 typedef floattelem::Message TelemMessage;
 typedef floattelem::Header TelemHeader;
@@ -59,6 +29,7 @@ StarCommandSerializer::StarCommandSerializer(
         }
 
         setup_starcommand(downlinkval.asString(), uplinkval.asString());
+        load_systems(std::bind(&StarCommandSerializer::add_system, this, _1));
 }
 
 void StarCommandSerializer::setup_starcommand(
@@ -96,6 +67,8 @@ void StarCommandSerializer::setup_starcommand(
                 this->control_subscription_ids,
                 std::bind(&StarCommandSerializer::signal_callback, this, _1, _2));
 }
+
+void StarCommandSerializer::target_passthrough_found_callback() {}
 
 void StarCommandSerializer::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
         RCLCPP_INFO(this->get_logger(), "Serializing StarCommand heartbeat message from topic id %d", id);
@@ -213,14 +186,14 @@ void StarCommandSerializer::uplink_callback(StarCommandUplink::SharedPtr msg) {
         this->send_telemetry(tmsg);
 }
 
-void StarCommandSerializer::add_system(const uint8_t id, const std::string& name, const std::string& topic) {
-        system_status_subscriptions[id] = this->create_subscription<SystemStatus>(
-                topic,
+void StarCommandSerializer::add_system(const DatalinkSystem& sys) {
+        system_status_subscriptions[sys.id] = this->create_subscription<SystemStatus>(
+                sys.topic,
                 10,
-                [this, id] (SystemStatus::SharedPtr msg) {
-                        this->system_status_callback(id, msg);
+                [this, &sys] (SystemStatus::SharedPtr msg) {
+                        this->system_status_callback(sys.id, msg);
                 }
         );
 
-        system_status_subscription_ids[topic] = id;
+        system_status_subscription_ids[sys.topic] = sys.id;
 }

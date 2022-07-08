@@ -104,7 +104,7 @@ private:
         void array_received_callback(const mavlink_message_t& msg);
 
         // Callback to call when we add a system
-        void add_system(const uint8_t id, const std::string& name, const std::string& topic) override;
+        void add_system(const DatalinkSystem& sys);
 };
 
 #endif //TELEMETRY_BRIDGE_HPP

@@ -9,6 +9,7 @@
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
 
+#include "datalink_util.hpp"
 #include "nodes/floattelem_bridge.hpp"
 
 using namespace mavsdk;
@@ -27,6 +28,7 @@ FloatTelemBridge::FloatTelemBridge(
         const Json::Value& config
 ) : BasicDatalinkNode(name, config) {
         setup_floattelem();
+        load_systems(std::bind(&FloatTelemBridge::add_system, this, _1));
 }
 
 void FloatTelemBridge::send_buffered_message() {
@@ -286,16 +288,19 @@ void FloatTelemBridge::array_received_callback(const mavlink_message_t& msg) {
         }
 }
 
-void FloatTelemBridge::add_system(const uint8_t id, const std::string& name, const std::string& topic) {
+void FloatTelemBridge::add_system(const DatalinkSystem& sys) {
         if (config["publish_system_status"].asBool()) {
-                system_status_publishers[id] = this->create_publisher<SystemStatus>(topic, 10);
+                system_status_publishers.insert(std::make_pair(
+                        sys.id,
+                        this->create_publisher<SystemStatus>(sys.topic, 10)
+                ));
         } else {
-                system_status_subscriptions[id] = this->create_subscription<SystemStatus>(
-                        topic,
+                system_status_subscriptions.insert(std::make_pair(sys.id,  this->create_subscription<SystemStatus>(
+                        sys.topic,
                         10,
-                        [this, id] (SystemStatus::SharedPtr msg) {
-                                this->system_status_callback(id, msg);
+                        [this, &sys] (SystemStatus::SharedPtr msg) {
+                                this->system_status_callback(sys.id, msg);
                         }
-                );
+                )));
         }
 }

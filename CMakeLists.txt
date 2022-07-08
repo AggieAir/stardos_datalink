@@ -9,7 +9,7 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+  add_compile_options(-Wall -Wextra -Wpedantic -g)
 endif()
 
 # find dependencies
@@ -37,7 +37,8 @@ add_library(datalink
         src/nodes/floattelem_sender.cpp
         src/nodes/floattelem_bridge.cpp
         src/nodes/autopilot_bridge.cpp
-        src/nodes/starcommand_serializer.cpp)
+        src/nodes/starcommand_serializer.cpp
+        src/nodes/datalink_server.cpp)
 
 ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK)
 

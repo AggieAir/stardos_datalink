@@ -8,6 +8,9 @@
 
 using namespace mavsdk;
 using namespace std::literals::chrono_literals;
+using namespace std::placeholders;
+
+using stardos_interfaces::msg::NodeHeartbeat;
 
 MAVLinkedNode::MAVLinkedNode() {
         RCLCPP_INFO(this->get_logger(), "Configuring MAVLink and connecting");
@@ -19,6 +22,13 @@ MAVLinkedNode::MAVLinkedNode() {
         // Yes, I know that Mavsdk::subscribe_on_system_added exists.
         // I could not get it to work consistently.
 	get_system_timer = this->create_wall_timer(1000ms, std::bind(&MAVLinkedNode::check_systems, this));
+
+        my_heartbeat_publisher = this->create_publisher<NodeHeartbeat>(name + "/heartbeat", 10);
+
+        my_heartbeat_timer = this->create_wall_timer(
+                1000ms,
+                std::bind(&MAVLinkedNode::publish_heartbeat, this)
+        );
 }
 
 void MAVLinkedNode::configure() {
@@ -92,6 +102,12 @@ void MAVLinkedNode::check_systems() {
                         this->target_passthrough_found_callback();
                 }
         }
+}
+
+void MAVLinkedNode::publish_heartbeat() {
+        NodeHeartbeat hb;
+        hb.state = 1;
+        my_heartbeat_publisher->publish(hb);
 }
 
 MavlinkPassthrough::Result MAVLinkedNode::send_mavlink(mavlink_message_t& msg) {

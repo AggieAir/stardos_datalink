@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
                 } else if (p == 0) {
                         port += s;
                         if (s != SERVER) {
-                                config["connection_url"] = "udp://127.0.0.1:" + std::to_string(p);
+                                config["connection_url"] = "udp://127.0.0.1:" + std::to_string(port);
                         }
                         config["compid"] = s;
 

@@ -20,15 +20,16 @@ public:
         );
 
         struct DatalinkClient {
+                bool connected;
                 pid_t pid;
                 DatalinkScope scope;
-                std::shared_ptr<mavsdk::Mavsdk> connection;
+                mavsdk::Mavsdk connection;
                 rclcpp::Subscription<NodeHeartbeat>::SharedPtr heartbeat_subscription;
         };
 protected:
-        std::vector<DatalinkClient> clients;
+        std::vector<std::shared_ptr<DatalinkClient>> clients;
 
         void target_passthrough_found_callback() override;
 
-        void client_heartbeat_callback(NodeHeartbeat::SharedPtr);
+        void client_heartbeat_callback(std::shared_ptr<DatalinkClient>, NodeHeartbeat::SharedPtr);
 };

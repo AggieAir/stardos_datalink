@@ -7,6 +7,8 @@
 
 #include "rclcpp/rclcpp.hpp"
 
+#include "stardos_interfaces/msg/node_heartbeat.hpp"
+
 #include "./basic_datalink_node.hpp"
 
 class MAVLinkedNode: virtual public BasicDatalinkNode
@@ -39,6 +41,11 @@ protected:
         // Runs every second; looks for systems
         rclcpp::TimerBase::SharedPtr get_system_timer;
 
+        // Runs every second; publishes my heartbeats
+        rclcpp::TimerBase::SharedPtr my_heartbeat_timer;
+
+        rclcpp::Publisher<stardos_interfaces::msg::NodeHeartbeat>::SharedPtr my_heartbeat_publisher;
+
         /* **************************** *
          * FUNCTION ZONE                *
          * Non-callback functions first *
@@ -57,6 +64,9 @@ protected:
         /* ********************** *
          * ENTERING CALLBACK LAND *
          * ********************** */
+
+        // Callback to publish a heartbeat
+        void publish_heartbeat();
 
         // This is called immediately after target is found and a MavlinkPassthrough is created for it
         virtual void target_passthrough_found_callback() = 0;

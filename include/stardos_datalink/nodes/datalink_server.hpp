@@ -21,15 +21,23 @@ public:
 
         struct DatalinkClient {
                 bool connected;
+                bool has_passthrough;
                 pid_t pid;
                 DatalinkScope scope;
-                mavsdk::Mavsdk connection;
                 rclcpp::Subscription<NodeHeartbeat>::SharedPtr heartbeat_subscription;
         };
 protected:
+        std::shared_ptr<mavsdk::System> own_system;
+
+        std::shared_ptr<mavsdk::MavlinkPassthrough> own_passthrough;
+
         std::vector<std::shared_ptr<DatalinkClient>> clients;
 
         void target_passthrough_found_callback() override;
+
+        void setup_message_forwarding(std::shared_ptr<mavsdk::MavlinkPassthrough> passthrough);
+
+        bool forward_message(mavlink_message_t& msg);
 
         void client_heartbeat_callback(std::shared_ptr<DatalinkClient>, NodeHeartbeat::SharedPtr);
 };

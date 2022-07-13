@@ -69,6 +69,11 @@ int main(int argc, char *argv[]) {
         scopes.push_back(SERVER);
 
         int port = 22000;
+        if (config["base_port"].isInt()) {
+                port = config["base_port"].asInt();
+        } else {
+                std::cerr << "expected a valid base port; using 22000 as default\n";
+        }
 
         for (auto s : scopes) {
                 pid_t p = 0;

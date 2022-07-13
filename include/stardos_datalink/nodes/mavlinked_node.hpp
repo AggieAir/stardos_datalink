@@ -2,6 +2,7 @@
 #define MAVLINKED_NODE_HPP
 
 #include <mavsdk/mavsdk.h>
+#include <mavsdk/log_callback.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/mavlink_types.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 
@@ -14,7 +15,7 @@
 class MAVLinkedNode: virtual public BasicDatalinkNode
 {
 public:
-	MAVLinkedNode();
+	MAVLinkedNode(mavsdk::ForwardingOption);
 
 protected:
         /* ************************ *
@@ -54,7 +55,7 @@ protected:
         // Wrapper around Mavsdk::set_configuration
 	virtual void configure();
         // Bind to the connection_url
-	virtual void connect();
+	virtual void connect(mavsdk::ForwardingOption);
         // Check to see if there is another system; connect if so
         virtual void check_systems();
 
@@ -67,6 +68,14 @@ protected:
 
         // Callback to publish a heartbeat
         void publish_heartbeat();
+
+        // Handle receipt of a mavlink logging message
+        bool handle_mavlink_log(
+                mavsdk::log::Level,
+                const std::string& message,
+                const std::string& file,
+                int line
+        );
 
         // This is called immediately after target is found and a MavlinkPassthrough is created for it
         virtual void target_passthrough_found_callback() = 0;

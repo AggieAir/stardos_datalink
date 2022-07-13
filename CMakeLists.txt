@@ -29,6 +29,7 @@ add_executable(datalink_configured src/executables/configured.cpp)
 ament_target_dependencies(datalink_configured rclcpp stardos_interfaces MAVSDK)
 
 add_library(datalink
+        src/datalink_util.cpp
         src/floattelem.cpp
         src/nodes/basic_datalink_node.cpp
         src/nodes/mavlinked_node.cpp

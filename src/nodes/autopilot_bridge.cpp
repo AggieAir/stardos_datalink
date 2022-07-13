@@ -48,7 +48,7 @@ typedef floattelem::Header TelemHeader;
 AutopilotBridge::AutopilotBridge(
         const std::string& name,
         const Json::Value& config
-) : BasicDatalinkNode(name, config) {
+) : BasicDatalinkNode(name, config), MAVLinkedNode(ForwardingOption::ForwardingOn) {
         setup_autopilot_telemetry();
 }
 

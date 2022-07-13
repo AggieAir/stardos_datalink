@@ -1,10 +1,9 @@
 {
         "config": {
                 "sysid": 190,
-                "compid": 190,
                 "connection_url": "udp://127.0.0.1:11002",
+                "base_port": 22300,
                 "targetsysid": 1,
-                "targetcompid": 220,
                 "autopilot_telemetry": false,
                 "publish_system_status": true,
                 "extra_config_directory": "/home/richard/workspaces/datalink/src/stardos_datalink/files",

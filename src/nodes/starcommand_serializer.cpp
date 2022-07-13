@@ -20,7 +20,7 @@ typedef floattelem::Header TelemHeader;
 StarCommandSerializer::StarCommandSerializer(
         const std::string& name,
         const Json::Value& config
-) : BasicDatalinkNode(name, config) {
+) : BasicDatalinkNode(name, config), MAVLinkedNode(ForwardingOption::ForwardingOn) {
         Json::Value uplinkval = config["starcommand"]["uplink"];
         Json::Value downlinkval = config["starcommand"]["downlink"];
 

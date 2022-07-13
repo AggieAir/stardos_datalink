@@ -12,10 +12,12 @@ using namespace std::placeholders;
 
 using stardos_interfaces::msg::NodeHeartbeat;
 
-MAVLinkedNode::MAVLinkedNode() {
+MAVLinkedNode::MAVLinkedNode(mavsdk::ForwardingOption forwarding) {
         RCLCPP_INFO(this->get_logger(), "Configuring MAVLink and connecting");
 	configure();
-	connect();
+	connect(forwarding);
+
+        mavsdk::log::subscribe(std::bind(&MAVLinkedNode::handle_mavlink_log, this, _1, _2, _3, _4));
 
         RCLCPP_INFO(this->get_logger(), "Beginning to check for systems");
         // Yes, the callback to check for the target system is just on a timer.
@@ -77,13 +79,13 @@ void MAVLinkedNode::configure() {
         );
 }
 
-void MAVLinkedNode::connect() {
+void MAVLinkedNode::connect(mavsdk::ForwardingOption forwarding) {
         Json::Value urlval = config["connection_url"];
         if (!urlval.isString()) {
                 RCLCPP_ERROR(this->get_logger(), "URL must be a string");
                 throw std::exception();
         }
-        dc.add_any_connection(config["connection_url"].asString());
+        dc.add_any_connection(config["connection_url"].asString(), forwarding);
 }
 
 void MAVLinkedNode::check_systems() {
@@ -108,6 +110,27 @@ void MAVLinkedNode::publish_heartbeat() {
         NodeHeartbeat hb;
         hb.state = 1;
         my_heartbeat_publisher->publish(hb);
+}
+
+bool MAVLinkedNode::handle_mavlink_log(
+        mavsdk::log::Level level,
+        const std::string& message,
+        const std::string& file,
+        int line
+) {
+        std::ostringstream out;
+        out << "MAVSDK: (" << file << ":" << line << ") " << message;
+        switch (level) {
+                case mavsdk::log::Level::Debug:
+                case mavsdk::log::Level::Info:
+                        RCLCPP_INFO(this->get_logger(), out.str());
+                        break;
+                case mavsdk::log::Level::Warn:
+                case mavsdk::log::Level::Err:
+                        RCLCPP_WARN(this->get_logger(), out.str());
+                        break;
+        }
+        return true;
 }
 
 MavlinkPassthrough::Result MAVLinkedNode::send_mavlink(mavlink_message_t& msg) {

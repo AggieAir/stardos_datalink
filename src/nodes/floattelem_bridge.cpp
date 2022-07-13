@@ -26,7 +26,7 @@ typedef floattelem::Header TelemHeader;
 FloatTelemBridge::FloatTelemBridge(
         const std::string& name,
         const Json::Value& config
-) : BasicDatalinkNode(name, config) {
+) : BasicDatalinkNode(name, config), MAVLinkedNode(ForwardingOption::ForwardingOn) {
         setup_floattelem();
         load_systems(std::bind(&FloatTelemBridge::add_system, this, _1));
 }

@@ -9,7 +9,9 @@ DatalinkServer::DatalinkServer(
         std::string name,
         Json::Value config,
         std::map<DatalinkScope, pid_t> clients
-): BasicDatalinkNode(name, config), MAVLinkedNode(mavsdk::ForwardingOption::ForwardingOn) {
+): BasicDatalinkNode(name, config),
+        MAVLinkedNode(mavsdk::ForwardingOption::ForwardingOn)
+{
         RCLCPP_INFO(this->get_logger(), "Starting to add mavlink clients");
         for (auto c: clients) {
                 std::shared_ptr<DatalinkClient> client_struct = std::make_shared<DatalinkClient>();
@@ -27,25 +29,7 @@ DatalinkServer::DatalinkServer(
         }
 }
 
-void DatalinkServer::target_passthrough_found_callback() {
-        setup_message_forwarding(target_passthrough);
-}
-
-void DatalinkServer::setup_message_forwarding(std::shared_ptr<mavsdk::MavlinkPassthrough> passthrough) {
-        passthrough->intercept_incoming_messages_async(
-                std::bind(&DatalinkServer::forward_message, this, _1)
-        );
-}
-
-bool DatalinkServer::forward_message(mavlink_message_t& msg) {
-        if (msg.sysid == targetsysid && own_passthrough) {
-                own_passthrough->send_message(msg);
-        } else if (msg.sysid == sysid && target_passthrough) {
-                target_passthrough->send_message(msg);
-        } 
-
-        return true;
-}
+void DatalinkServer::target_passthrough_found_callback() {}
 
 void DatalinkServer::client_heartbeat_callback(
                 std::shared_ptr<DatalinkClient> client,
@@ -56,7 +40,7 @@ void DatalinkServer::client_heartbeat_callback(
                 int port = config["base_port"].asInt() + client->scope;
                 mavsdk::ConnectionResult result = dc.add_any_connection(
                         "udp://:" + std::to_string(port),
-                        mavsdk::ForwardingOption::ForwardingOff
+                        mavsdk::ForwardingOption::ForwardingOn
                 );
 
                 if (result != mavsdk::ConnectionResult::Success) {
@@ -76,7 +60,6 @@ void DatalinkServer::client_heartbeat_callback(
                         if (s->get_system_id() == sysid) {
                                 own_system = s;
                                 own_passthrough = std::make_shared<mavsdk::MavlinkPassthrough>(s);
-                                // setup_message_forwarding(own_passthrough);
                         }
                 }
         }

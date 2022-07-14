@@ -43,6 +43,12 @@ void FloatTelemBridge::target_passthrough_found_callback() {
                         MAVLINK_MSG_ID_LOGGING_DATA,
                         std::bind(&FloatTelemBridge::array_received_callback, this, _1));
 
+        // target_passthrough->subscribe_message_async(
+        //                 MAVLINK_MSG_ID_HEARTBEAT,
+        //                 [this] (const mavlink_message_t& msg) {
+        //                         RCLCPP_INFO(this->get_logger(), "got heartbeat from %d/%d", msg.sysid, msg.compid);
+        //                 });
+
         send_telemetry_timer = this->create_wall_timer(
                         1000ms,
                         std::bind(&FloatTelemBridge::send_buffered_message, this));
@@ -164,7 +170,7 @@ void FloatTelemBridge::setup_floattelem() {
 }
 
 void FloatTelemBridge::array_received_callback(const mavlink_message_t& msg) {
-        RCLCPP_DEBUG(this->get_logger(), "Got a LOGGING_DATA message");
+        RCLCPP_INFO(this->get_logger(), "Got a LOGGING_DATA message");
 
         mavlink_logging_data_t * inner = new mavlink_logging_data_t();
         mavlink_msg_logging_data_decode(&msg, inner);
@@ -180,9 +186,7 @@ void FloatTelemBridge::array_received_callback(const mavlink_message_t& msg) {
 
         if (
                         msg.sysid != targetsysid ||
-                        msg.compid != targetcompid ||
-                        inner->target_system != sysid ||
-                        inner->target_component != compid
+                        inner->target_system != sysid
         ) {
                 return;
         }

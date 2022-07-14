@@ -35,9 +35,5 @@ protected:
 
         void target_passthrough_found_callback() override;
 
-        void setup_message_forwarding(std::shared_ptr<mavsdk::MavlinkPassthrough> passthrough);
-
-        bool forward_message(mavlink_message_t& msg);
-
         void client_heartbeat_callback(std::shared_ptr<DatalinkClient>, NodeHeartbeat::SharedPtr);
 };

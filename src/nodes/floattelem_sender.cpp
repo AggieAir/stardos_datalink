@@ -4,6 +4,10 @@
 #include "nodes/floattelem_sender.hpp"
 
 mavsdk::MavlinkPassthrough::Result FloatTelemSenderNode::send_telemetry(floattelem::Message msg) {
+        if (!target_passthrough) {
+                return mavsdk::MavlinkPassthrough::Result::ConnectionError;
+        }
+
         if (msg.is_empty()) {
                 return mavsdk::MavlinkPassthrough::Result::Unknown;
         }

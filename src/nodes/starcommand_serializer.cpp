@@ -48,21 +48,14 @@ void StarCommandSerializer::setup_starcommand(
 
         RCLCPP_INFO(this->get_logger(), "Creating heartbeat subscribers");
         this->fill_subscriber_list<NodeHeartbeat>(
-                config["heartbeat"]["sub"],
+                config["heartbeat"]["pub"],
                 this->heartbeat_subscriptions,
                 this->heartbeat_subscription_ids,
                 std::bind(&StarCommandSerializer::heartbeat_callback, this, _1, _2));
 
         RCLCPP_INFO(this->get_logger(), "Creating control message subscribers");
         this->fill_subscriber_list<Control>(
-                config["control"]["sub"],
-                this->signal_subscriptions,
-                this->control_subscription_ids,
-                std::bind(&StarCommandSerializer::signal_callback, this, _1, _2));
-
-        RCLCPP_INFO(this->get_logger(), "Creating control message subscribers");
-        this->fill_subscriber_list<Control>(
-                config["control"]["sub"],
+                config["control"]["pub"],
                 this->signal_subscriptions,
                 this->control_subscription_ids,
                 std::bind(&StarCommandSerializer::signal_callback, this, _1, _2));

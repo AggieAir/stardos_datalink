@@ -35,7 +35,7 @@ void DatalinkServer::client_heartbeat_callback(
                 std::shared_ptr<DatalinkClient> client,
                 NodeHeartbeat::SharedPtr
 ) {
-        if (!client->connected) {
+        if (!client->connected && target_passthrough) {
                 RCLCPP_INFO(this->get_logger(), "Opening server for component %s", get_node_name(client->scope).c_str());
                 int port = config["base_port"].asInt() + client->scope;
                 mavsdk::ConnectionResult result = dc.add_any_connection(

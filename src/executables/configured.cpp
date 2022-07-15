@@ -19,7 +19,7 @@
 
 std::map<DatalinkScope, pid_t> processes;
 
-void handle_signal(int signum) {
+void handle_signal(int) {
         std::cout << "Got terminate signal\n";
         for (auto pair : processes) {
                 kill(pair.second, SIGTERM);

@@ -106,6 +106,13 @@ void MAVLinkedNode::check_systems() {
         }
 }
 
+uint32_t MAVLinkedNode::time_boot_ms() {
+	struct timespec up;
+	int err = clock_gettime(CLOCK_BOOTTIME, &up);
+
+	return up.tv_sec + up.tv_nsec / 1000;
+}
+
 void MAVLinkedNode::publish_heartbeat() {
         NodeHeartbeat hb;
         hb.state = 1;

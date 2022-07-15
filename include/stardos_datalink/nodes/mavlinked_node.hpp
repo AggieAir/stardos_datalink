@@ -51,7 +51,7 @@ protected:
          * FUNCTION ZONE                *
          * Non-callback functions first *
          * **************************** */
-
+        
         // Wrapper around Mavsdk::set_configuration
 	virtual void configure();
         // Bind to the connection_url
@@ -61,6 +61,10 @@ protected:
 
         // Send a mavlink message
         virtual mavsdk::MavlinkPassthrough::Result send_mavlink(mavlink_message_t& msg);
+
+        // Get the time since boot
+        // Commonly requested in mavlink messages
+        uint32_t time_boot_ms();
 
         /* ********************** *
          * ENTERING CALLBACK LAND *

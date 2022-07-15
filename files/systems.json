@@ -2,31 +2,31 @@
         {
                 "name": "copilot",
                 "id": 0,
-                "topic": "copilot/status"
+                "topic": "/copilot/status"
         },
         {
                 "name": "APL-000",
                 "id": 1,
-                "topic": "APL_000/status"
+                "topic": "/APL_000/status"
         },
         {
                 "name": "APL-001",
                 "id": 2,
-                "topic": "APL_001/status"
+                "topic": "/APL_001/status"
         },
         {
                 "name": "APL-002",
                 "id": 3,
-                "topic": "APL_002/status"
+                "topic": "/APL_002/status"
         },
         {
                 "name": "APL-003",
                 "id": 4,
-                "topic": "APL_003/status"
+                "topic": "/APL_003/status"
         },
         {
                 "name": "APL-004",
                 "id": 5,
-                "topic": "APL_004/status"
+                "topic": "/APL_004/status"
         }
 ]

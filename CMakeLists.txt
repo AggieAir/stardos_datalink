@@ -39,7 +39,8 @@ add_library(datalink
         src/nodes/floattelem_bridge.cpp
         src/nodes/autopilot_bridge.cpp
         src/nodes/starcommand_serializer.cpp
-        src/nodes/datalink_server.cpp)
+        src/nodes/datalink_server.cpp
+        src/nodes/mavlink_camera_capture.cpp)
 
 ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK)
 

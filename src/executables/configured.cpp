@@ -11,6 +11,7 @@
 #include "nodes/autopilot_bridge.hpp"
 #include "nodes/starcommand_serializer.hpp"
 #include "nodes/datalink_server.hpp"
+#include "nodes/mavlink_camera_capture.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include "datalink.hpp"
@@ -63,6 +64,12 @@ int main(int argc, char *argv[]) {
         if (config["starcommand"].isObject()) {
                 scopes.push_back(STARCOMMAND_SERIALIZER);
         }
+
+        if (config["cameras"].isInt()) {
+                for (int i  = 0; i < config["cameras"].asInt() && i < 6; i++) {
+                        scopes.push_back((DatalinkScope) (CAMERA + i));
+                }
+        }
         
         config["targetcompid"] = SERVER;
 
@@ -107,6 +114,14 @@ int main(int argc, char *argv[]) {
                                 break;
                         case SERVER:
                                 rclcpp::spin(std::make_shared<DatalinkServer>(node_name, config, processes));
+                                break;
+                        case CAMERA:
+                        case CAMERA2:
+                        case CAMERA3:
+                        case CAMERA4:
+                        case CAMERA5:
+                        case CAMERA6:
+                                rclcpp::spin(std::make_shared<MAVLinkCameraCapture>(node_name, config, s - CAMERA + 1));
                                 break;
                         default:
                                 break;

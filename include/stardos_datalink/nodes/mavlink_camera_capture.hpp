@@ -7,16 +7,18 @@
 using stardos_interfaces::msg::Control;
 using stardos_interfaces::msg::GlobalPosition;
 
-class MAVLinkCameraCapture : MAVLinkedNode {
+class MAVLinkCameraCapture : virtual public MAVLinkedNode {
 public:
         MAVLinkCameraCapture(
                 const std::string& name,
-                const Json::Value& config
+                const Json::Value& config,
+                int32_t id
         );
 
 protected:
         uint32_t image_count;
         int32_t image_index;
+        int32_t id;
         
         float interval;
         bool forever;

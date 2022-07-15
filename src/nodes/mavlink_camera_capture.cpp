@@ -4,13 +4,15 @@ using namespace std::placeholders;
 
 MAVLinkCameraCapture::MAVLinkCameraCapture(
         const std::string& name,
-        const Json::Value& config
+        const Json::Value& config,
+        int32_t id
 ): BasicDatalinkNode(name, config),
-        MAVLinkedNode(mavsdk::ForwardingOption::ForwardingOn)
+        MAVLinkedNode(mavsdk::ForwardingOption::ForwardingOn),
+        id{id}
 {
-        take_image_publisher = this->create_publisher<Control>("capture", 10);
+        take_image_publisher = this->create_publisher<Control>("gcs_capture", 10);
         position_subscription = this->create_subscription<GlobalPosition>(
-                "/mutt/global_position",
+                "global_position",
                 10,
                 std::bind(&MAVLinkCameraCapture::position_received_callback, this, _1)
         );
@@ -299,7 +301,9 @@ void MAVLinkCameraCapture::handle_request_stop_capture(
 }
 
 void MAVLinkCameraCapture::take_image() {
-        take_image_publisher->publish(Control{});
+        Control rosmsg;
+        rosmsg.options = id;
+        take_image_publisher->publish(rosmsg);
 
         mavlink_camera_image_captured_t captured = {};
         captured.time_utc = 0;

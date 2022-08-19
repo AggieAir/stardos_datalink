@@ -2,6 +2,7 @@
 #define DATALINK_HPP
 
 #include <functional>
+#include <unordered_set>
 
 #include <istream>
 #include <mavsdk/mavsdk.h>
@@ -69,6 +70,9 @@ private:
 	std::shared_ptr<mavsdk::System> autopilot;
         // Reference to MAVLink system to send telemetry to
 	std::shared_ptr<mavsdk::System> target;
+
+        std::string aircraft;
+        std::string payload;
 
         // DEBUG_FLOAT_ARRAY Array ID
         uint16_t array_id;
@@ -146,6 +150,7 @@ private:
          * Non-callback functions first *
          * **************************** */
 
+        void detect_environment();
         // Wrapper around Mavsdk::set_configuration
 	void configure();
         // Bind to the connection_url

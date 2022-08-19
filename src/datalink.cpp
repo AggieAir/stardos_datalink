@@ -1,5 +1,6 @@
 #include <fstream>
 #include <functional>
+#include <filesystem>
 #include <iostream>
 #include <chrono>
 #include <string.h>
@@ -61,14 +62,9 @@ Datalink::Datalink(
         name{name},
         config{config},
         array_id{0},
-        heartbeat_subscriptions{std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr>()},
-        signal_subscriptions{std::vector<rclcpp::Subscription<Control>::SharedPtr>()},
-        heartbeat_publishers{std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr>()},
-        signal_publishers{std::vector<rclcpp::Publisher<Control>::SharedPtr>()},
         buffered_message{TelemMessage()}
 {
-        ParameterDescriptor ro;
-        ro.read_only = true;
+        detect_environment();
 
 	configure();
 	connect();
@@ -90,6 +86,26 @@ Datalink::Datalink(
         setup_floattelem();
 }
 
+void Datalink::detect_environment() {
+        std::string ns(get_namespace());
+        int idx = ns.find('/');
+        aircraft = ns.substr(1, idx - 1);
+
+        std::vector<std::string> node_names = get_node_names();
+
+        for (std::string n : node_names) {
+                int idx1 = ns.find('/', 1);
+                int idx2 = ns.find('/', idx1 + 1);
+                std::string computer = n.substr(idx1 + 1, idx2 - idx1);
+
+                if (computer != "copilot") {
+                        payload = computer;
+
+                        break;
+                }
+        }
+}
+
 void Datalink::configure() {
         Json::Value sysidval = config["sysid"];
         Json::Value compidval = config["compid"];
@@ -109,7 +125,6 @@ void Datalink::configure() {
                         !filesval.isString()
         ) {
                 RCLCPP_ERROR(this->get_logger(), "System and Component IDs must be ints within [0, 255]");
-                throw std::exception();
         }
 
         sysid = sysidval.asUInt();
@@ -169,22 +184,53 @@ void Datalink::load_system_statuses() {
 
         file >> root;
 
-        for (auto v = root.begin(); v != root.end(); v++) {
-                uint8_t     id    = (*v)["id"].asInt();
-                std::string name  = (*v)["name"].asString();
-                std::string topic = (*v)["topic"].asString();
+        // for (auto v = root.begin(); v != root.end(); v++) {
+        //         uint8_t     id    = (*v)["id"].asInt();
+        //         std::string name  = (*v)["name"].asString();
+        //         std::string topic = (*v)["topic"].asString();
 
-                if (config["publish_system_status"].asBool()) {
-                        system_status_publishers[id] = this->create_publisher<SystemStatus>(topic, 10);
-                } else {
-                        system_status_subscriptions[id] = this->create_subscription<SystemStatus>(
-                                topic,
-                                10,
-                                [this, id] (SystemStatus::SharedPtr msg) {
-                                        this->system_status_callback(id, msg);
-                                }
-                        );
-                }
+        //         if (config["publish_system_status"].asBool()) {
+        //                 system_status_publishers[id] = this->create_publisher<SystemStatus>(topic, 10);
+        //         } else if (payloads.find(name) == computers.end()) {
+        //                 system_status_subscriptions[id] = this->create_subscription<SystemStatus>(
+        //                         topic,
+        //                         10,
+        //                         [this, id] (SystemStatus::SharedPtr msg) {
+        //                                 this->system_status_callback(id, msg);
+        //                         }
+        //                 );
+        //         }
+        // }
+        
+        std::filesystem::path payload_path = std::filesystem::path("/") / aircraft / payload / "status";
+        std::filesystem::path copilot_path = std::filesystem::path("/") / aircraft / "copilot" / "status";
+
+        if (config["publish_system_status"].asBool()) {
+                system_status_publishers[0] = this->create_publisher<SystemStatus>(
+                        payload_path,
+                        10
+                );
+
+                system_status_publishers[1] = this->create_publisher<SystemStatus>(
+                        copilot_path,
+                        10
+                );
+        } else {
+                system_status_subscriptions[0] = this->create_subscription<SystemStatus>(
+                        payload_path,
+                        10,
+                        [this] (SystemStatus::SharedPtr msg) {
+                                this->system_status_callback(0, msg);
+                        }
+                );
+
+                system_status_subscriptions[1] = this->create_subscription<SystemStatus>(
+                        copilot_path,
+                        10,
+                        [this] (SystemStatus::SharedPtr msg) {
+                                this->system_status_callback(1, msg);
+                        }
+                );
         }
 }
 

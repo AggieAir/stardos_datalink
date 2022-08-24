@@ -620,6 +620,10 @@ void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
                 hb.requests = root["requests"].asUInt();
                 hb.failures = root["failures"].asUInt();
 
+                for (Json::ArrayIndex i = 0; i < root["data"].size(); i++) {
+                        hb.data[i] = root["data"][i].asUInt();
+                }
+
                 this->heartbeat_callback(
                         heartbeat_subscription_ids.at(msg->destination),
                         std::shared_ptr<NodeHeartbeat>(&hb)
@@ -724,8 +728,12 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                         v["state"]    = Json::Value(ros_message.state);
                         v["requests"] = Json::Value(ros_message.requests);
                         v["failures"] = Json::Value(ros_message.failures);
-
                         v["errors"]   = Json::Value(ros_message.errors);
+                        v["data"]     = Json::arrayValue;
+
+                        for (int i = 0; i < ros_message.data.size(); i++) {
+                                v["data"].append(ros_message.data[i]);
+                        }
 
                         std::ostringstream json_out;
                         json_out << v;

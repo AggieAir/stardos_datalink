@@ -16,6 +16,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(stardos_interfaces REQUIRED)
+find_package(libstardos REQUIRED)
 find_package(MAVSDK REQUIRED)
 find_package(jsoncpp REQUIRED)
 
@@ -26,13 +27,13 @@ find_package(jsoncpp REQUIRED)
 # ament_target_dependencies(datalink_copilot rclcpp stardos_interfaces MAVSDK)
 
 add_executable(datalink_configured src/executables/configured.cpp)
-ament_target_dependencies(datalink_configured rclcpp stardos_interfaces MAVSDK)
+ament_target_dependencies(datalink_configured rclcpp stardos_interfaces MAVSDK libstardos)
 
 add_library(floattelem src/floattelem.cpp)
 ament_target_dependencies(floattelem stardos_interfaces)
 
 add_library(datalink src/datalink.cpp)
-ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK)
+ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK libstardos)
 
 include_directories(include/stardos_datalink)
 

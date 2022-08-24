@@ -15,6 +15,9 @@
 #include "rclcpp/publisher.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/timer.hpp"
+
+#include "libstardos/node.hpp"
+
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 #include "stardos_interfaces/msg/control.hpp"
 #include "stardos_interfaces/msg/global_position.hpp"
@@ -24,33 +27,17 @@
 #include "stardos_interfaces/msg/system_status.hpp"
 #include "stardos_interfaces/msg/star_command_downlink.hpp"
 #include "stardos_interfaces/msg/star_command_uplink.hpp"
+#include "stardos_interfaces/srv/topic_list.hpp"
 
 #include "floattelem.hpp"
 
-using stardos_interfaces::msg::NodeHeartbeat;
-using stardos_interfaces::msg::Control;
-using stardos_interfaces::msg::GlobalPosition;
-using stardos_interfaces::msg::GPSPosition;
-using stardos_interfaces::msg::Attitude;
-using stardos_interfaces::msg::SystemTime;
-using stardos_interfaces::msg::SystemStatus;
-using stardos_interfaces::msg::StarCommandDownlink;
-using stardos_interfaces::msg::StarCommandUplink;
+using namespace stardos_interfaces::msg;
+using namespace stardos_interfaces::srv;
 
-class Datalink: public rclcpp::Node
-{
+class Datalink: public stardos::Node {
 public:
 	Datalink(
                 const std::string& name,
-                // uint8_t sysid,
-                // uint8_t compid,
-                // bool heartbeat,
-                // const std::string& connection_url,
-                // uint8_t targetsysid,
-                // uint8_t targetcompid,
-                // bool autopilot_telemetry,
-                // bool starcommand,
-                // bool publish_system_status,
                 const Json::Value& config
         );
 
@@ -60,10 +47,6 @@ private:
          * There are a lot of these *
          * ************************ */
 
-        // ROS node name
-        std::string name;
-        // Configuration JSON
-        Json::Value config;
         // Instance of MAVSDK -- this models the connection
   	mavsdk::Mavsdk dc;
         // Reference to autopilot system
@@ -119,6 +102,8 @@ private:
         //   (this is a map because we may skip some system id at some point)
         std::map<uint8_t, rclcpp::Publisher<SystemStatus>::SharedPtr> system_status_publishers;
 
+        std::vector<rclcpp::ServiceBase::SharedPtr> services;
+
         // map topics to topic ids
         std::map<std::string, uint8_t> heartbeat_publisher_ids;
         std::map<std::string, uint8_t> control_publisher_ids;
@@ -157,6 +142,10 @@ private:
 	void connect();
         // Read configuration (usually passed on stdin)
         void setup_floattelem();
+        // Setup basic common topics for copilot and payload heartbeats
+        void setup_default_heartbeat_topics();
+        // Setup basic common topics for start and end mission
+        void setup_default_control_topics();
         // Setup autopilot telemetry
         void setup_autopilot_telemetry();
         // Setup starcommand downlink and uplink
@@ -188,7 +177,24 @@ private:
         void control_callback(Control::SharedPtr msg);
         // Runs every time we get an uplink message
         void uplink_callback(StarCommandUplink::SharedPtr msg);
-        
+
+        template<typename T>
+        void subscribe_service_callback(
+                TopicList::Request::SharedPtr req,
+                TopicList::Response::SharedPtr resp,
+                std::vector<typename rclcpp::Subscription<T>::SharedPtr> &dest,
+                std::map<std::string, uint8_t> &mapping,
+                std::function<void(int, std::shared_ptr<T>)>
+        );
+
+        template<typename T>
+        void publish_service_callback(
+                TopicList::Request::SharedPtr req,
+                TopicList::Response::SharedPtr resp,
+                std::vector<typename rclcpp::Publisher<T>::SharedPtr> &dest,
+                std::map<std::string, uint8_t> &mapping
+        );
+
         // These all process particular mavlink message types
         // There's not much to see, tbh
         void array_received_callback(const mavlink_message_t& msg);
@@ -201,7 +207,7 @@ private:
         // Makes it a lot easier to handle "pub" and "sub" lists from the control listener
         template<typename T>
         void fill_subscriber_list(
-                Json::Value& topics,
+                const std::vector<std::string> &topics,
                 std::vector<typename rclcpp::Subscription<T>::SharedPtr> &dest,
                 std::map<std::string, uint8_t> &mapping,
                 std::function<void(int, std::shared_ptr<T>)>
@@ -209,9 +215,10 @@ private:
 
         template<typename T>
         void fill_publisher_list(
-                Json::Value& topics,
+                const std::vector<std::string> &topics,
                 std::vector<typename rclcpp::Publisher<T>::SharedPtr> &dest,
-                std::map<std::string, uint8_t> &mapping);
+                std::map<std::string, uint8_t> &mapping
+        );
 };
 
 #endif //DATALINK

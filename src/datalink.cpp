@@ -50,9 +50,9 @@ Datalink::Datalink(
         // bool autopilot_telemetry,
         // bool starcommand,
         // bool publish_system_status,
-        const Json::Value& config
-) : stardos::Node(name, config),
-        array_id{0},
+        const Json::Value config
+) : rclcpp::Node(name),
+        config{config},
         buffered_message{TelemMessage()}
 {
 	configure();

@@ -16,8 +16,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/timer.hpp"
 
-#include "libstardos/node.hpp"
-
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 #include "stardos_interfaces/msg/control.hpp"
 #include "stardos_interfaces/msg/global_position.hpp"
@@ -34,11 +32,11 @@
 using namespace stardos_interfaces::msg;
 using namespace stardos_interfaces::srv;
 
-class Datalink: public stardos::Node {
+class Datalink: public rclcpp::Node {
 public:
 	Datalink(
                 const std::string& name,
-                const Json::Value& config
+                const Json::Value config
         );
 
 private:
@@ -46,6 +44,8 @@ private:
          * VARIABLE ZONE            *
          * There are a lot of these *
          * ************************ */
+
+        const Json::Value config;
 
         // Instance of MAVSDK -- this models the connection
   	mavsdk::Mavsdk dc;

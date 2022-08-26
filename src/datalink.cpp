@@ -190,7 +190,7 @@ void Datalink::setup_default_heartbeat_topics() {
 void Datalink::setup_default_control_topics() {
         std::vector<std::string> topics{"/start_mission", "/end_mission"};
 
-        if (config["publish_default_topics"].asBool()) {
+        if (!config["publish_default_topics"].asBool()) {
                 fill_publisher_list<Control>(
                         topics,
                         signal_publishers,
@@ -634,7 +634,7 @@ void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
                 ctrl.options = root["options"].asString();
 
                 this->signal_callback(
-                        control_subscription_ids.at(msg->destination),
+                        control_publisher_ids.at(msg->destination),
                         std::shared_ptr<Control>(&ctrl)
                 );
         }

@@ -634,7 +634,7 @@ void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
                 ctrl.options = root["options"].asString();
 
                 this->signal_callback(
-                        control_publisher_ids.at(msg->destination),
+                        control_subscription_ids.at(msg->destination),
                         std::shared_ptr<Control>(&ctrl)
                 );
         }

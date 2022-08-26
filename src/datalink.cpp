@@ -631,7 +631,7 @@ void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
         } else if (msg->type == "control") {
                 Control ctrl;
 
-                ctrl.options = root["options"].asInt();
+                ctrl.options = root["options"].asString();
 
                 this->signal_callback(
                         control_subscription_ids.at(msg->destination),

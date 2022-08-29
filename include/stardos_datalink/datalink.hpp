@@ -219,6 +219,12 @@ private:
                 std::vector<typename rclcpp::Publisher<T>::SharedPtr> &dest,
                 std::map<std::string, uint8_t> &mapping
         );
+
+        template<typename T>
+        static void copy_to_json_array(std::vector<T> &arr, Json::Value val);
+
+        template<typename T, size_t N>
+        static void copy_to_json_array(std::array<T, N> &arr, Json::Value val);
 };
 
 #endif //DATALINK

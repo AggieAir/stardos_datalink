@@ -729,11 +729,7 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                         v["requests"] = Json::Value(ros_message.requests);
                         v["failures"] = Json::Value(ros_message.failures);
                         v["errors"]   = Json::Value(ros_message.errors);
-                        v["data"]     = Json::arrayValue;
-
-                        for (int i = 0; i < ros_message.data.size(); i++) {
-                                v["data"].append(ros_message.data[i]);
-                        }
+                        copy_to_json_array(ros_message.data, v["data"]);
 
                         std::ostringstream json_out;
                         json_out << v;
@@ -797,32 +793,25 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 
                         floattelem::SystemCapacity &cap = result->second;
 
-                        RCLCPP_DEBUG(this->get_logger(), "Preparing ROS message");
                         SystemStatus out;
-                        RCLCPP_DEBUG(this->get_logger(), "Adding CPU info");
                         out.cpu_count = in.cpu_usage.size();
                         out.cpu_usage = in.cpu_usage;
-                        RCLCPP_DEBUG(this->get_logger(), "Adding uptime info");
                         out.uptime = in.uptime;
 
-                        RCLCPP_DEBUG(this->get_logger(), "Creating memory array");
                         out.memory = std::array<uint32_t, 2> {
                                 (uint32_t) ((float) in.memory / USHRT_MAX * cap.max_memory_mb),
                                 cap.max_memory_mb
                         };
 
-                        RCLCPP_DEBUG(this->get_logger(), "Creating swap array");
                         out.swap = std::array<uint32_t, 2> {
                                 (uint32_t) ((float) in.swap / USHRT_MAX * cap.max_swap_mb),
                                 cap.max_swap_mb
                         };
 
-                        RCLCPP_DEBUG(this->get_logger(), "Creating mounts vector");
                         for (auto v = in.mounts.begin(); v != in.mounts.end(); v++) {
                                 out.mounts.push_back(*v >= mountpoint_names.size() ? "UNKNOWN" : mountpoint_names[*v]);
                         }
 
-                        RCLCPP_DEBUG(this->get_logger(), "Creating disks and disk size vector");
                         for (auto v = std::make_pair(in.disks.begin(), cap.disks_size_mb.begin()); v.first != in.disks.end(); v.first++, v.second++) {
                                 out.disks.push_back(
                                         (uint32_t) ((float) *v.first / USHRT_MAX * *v.second)
@@ -830,8 +819,29 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                                 out.disks.push_back(*v.second);
                         }
 
-                        RCLCPP_DEBUG(this->get_logger(), "Publishing to %s", system_status_publishers[head.topic_id]->get_topic_name());
                         system_status_publishers[head.topic_id]->publish(out);
+
+                        if (!this->starcommand_publisher) continue;
+
+                        StarCommandDownlink down;
+
+                        Json::Value v(Json::objectValue);
+
+                        copy_to_json_array(out.cpu_usage, v["cpu_usage"]);
+                        copy_to_json_array(out.disks, v["disks"]);
+                        copy_to_json_array(out.mounts, v["mounts"]);
+                        copy_to_json_array(out.memory, v["memory"]);
+                        copy_to_json_array(out.swap, v["swap"]);
+                        v["uptime"] = out.uptime;
+                        v["cpu_count"] = out.cpu_count;
+
+                        std::ostringstream ss;
+                        ss << v;
+                        down.type = "system";
+                        down.payload = ss.str();
+                        down.origin = signal_publishers[head.topic_id]->get_topic_name();
+
+                        starcommand_publisher->publish(down);
                 } else {
                         RCLCPP_ERROR(
                                 this->get_logger(),
@@ -970,5 +980,21 @@ void Datalink::fill_publisher_list(
                 mapping.insert(std::make_pair(*topic, id));
                 
                 id++;
+        }
+}
+
+template<typename T>
+void Datalink::copy_to_json_array(std::vector<T> &arr, Json::Value val) {
+        val = Json::arrayValue;
+        for (Json::ArrayIndex i = 0; i < arr.size(); i++) {
+                val.append(arr[i]);
+        }
+}
+
+template<typename T, size_t N>
+void Datalink::copy_to_json_array(std::array<T, N> &arr, Json::Value val) {
+        val = Json::arrayValue;
+        for (Json::ArrayIndex i = 0; i < arr.size(); i++) {
+                val.append(arr[i]);
         }
 }

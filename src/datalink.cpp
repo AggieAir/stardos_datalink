@@ -819,6 +819,8 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                                 out.disks.push_back(*v.second);
                         }
 
+                        RCLCPP_INFO(this->get_logger(), "yes");
+
                         system_status_publishers[head.topic_id]->publish(out);
 
                         if (!this->starcommand_publisher) continue;
@@ -839,7 +841,7 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                         ss << v;
                         down.type = "system";
                         down.payload = ss.str();
-                        down.origin = signal_publishers[head.topic_id]->get_topic_name();
+                        down.origin = system_status_publishers[head.topic_id]->get_topic_name();
 
                         starcommand_publisher->publish(down);
                 } else {
@@ -984,7 +986,7 @@ void Datalink::fill_publisher_list(
 }
 
 template<typename T>
-void Datalink::copy_to_json_array(std::vector<T> &arr, Json::Value val) {
+void Datalink::copy_to_json_array(std::vector<T> &arr, Json::Value &val) {
         val = Json::arrayValue;
         for (Json::ArrayIndex i = 0; i < arr.size(); i++) {
                 val.append(arr[i]);
@@ -992,7 +994,7 @@ void Datalink::copy_to_json_array(std::vector<T> &arr, Json::Value val) {
 }
 
 template<typename T, size_t N>
-void Datalink::copy_to_json_array(std::array<T, N> &arr, Json::Value val) {
+void Datalink::copy_to_json_array(std::array<T, N> &arr, Json::Value &val) {
         val = Json::arrayValue;
         for (Json::ArrayIndex i = 0; i < arr.size(); i++) {
                 val.append(arr[i]);

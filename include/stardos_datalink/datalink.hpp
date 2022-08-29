@@ -221,10 +221,10 @@ private:
         );
 
         template<typename T>
-        static void copy_to_json_array(std::vector<T> &arr, Json::Value val);
+        static void copy_to_json_array(std::vector<T> &arr, Json::Value &val);
 
         template<typename T, size_t N>
-        static void copy_to_json_array(std::array<T, N> &arr, Json::Value val);
+        static void copy_to_json_array(std::array<T, N> &arr, Json::Value &val);
 };
 
 #endif //DATALINK

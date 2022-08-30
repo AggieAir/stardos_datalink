@@ -313,6 +313,7 @@ void Datalink::send_buffered_message() {
 }
 
 MavlinkPassthrough::Result Datalink::send_telemetry(const TelemMessage& msg) {
+        RCLCPP_DEBUG(this->get_logger(), "Attempting to send telemetry (size=%hhu)", msg.get_offset());
         if (!target_passthrough || msg.is_empty()) {
                 return MavlinkPassthrough::Result::Unknown;
         }

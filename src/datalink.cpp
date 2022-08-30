@@ -313,7 +313,7 @@ void Datalink::send_buffered_message() {
 }
 
 MavlinkPassthrough::Result Datalink::send_telemetry(const TelemMessage& msg) {
-        if (msg.is_empty()) {
+        if (!target_passthrough || msg.is_empty()) {
                 return MavlinkPassthrough::Result::Unknown;
         }
 
@@ -432,11 +432,10 @@ void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
                 RCLCPP_ERROR(this->get_logger(), "Option string too long; will be truncated");
         }
 
-        if (!buffered_message.push_control_message(ctrl->options, id)) {
-                send_buffered_message();
-                buffered_message.reset();
-                buffered_message.push_control_message(ctrl->options, id);
-        }
+        TelemMessage tmsg;
+        tmsg.push_control_message(ctrl->options, id);
+
+        send_telemetry(tmsg);
 }
 
 void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {

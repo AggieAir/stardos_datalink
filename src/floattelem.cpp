@@ -332,6 +332,39 @@ namespace floattelem {
                 return ret;
         }
 
+        bool Message::push_system_capacity_request_message(uint8_t topic_id) {
+                /*  bits  bytes
+                 *  0:23   0- 2  header
+                 * 24: n   3- n  action
+                 */
+
+                if (MSG_SYSTEM_CAPACITY_REQUEST_LENGTH) {
+                        return false;
+                }
+
+                this->push_header(MSG_ID_SYSTEM_CAPACITY_REQUEST, MSG_SYSTEM_CAPACITY_REQUEST_LENGTH, topic_id);
+
+                finalize(MSG_SYSTEM_CAPACITY_REQUEST_LENGTH);
+
+                return true;
+        }
+
+        uint8_t Message::pop_system_capacity_request_message() {
+                Header head = next_header();
+
+                if (head.msg_type != MSG_ID_SYSTEM_CAPACITY_REQUEST) {
+                        throw  wrong_id_error(head.msg_type, MSG_ID_CONTROL);
+                }
+                
+                if (head.msg_length != MSG_SYSTEM_CAPACITY_REQUEST_LENGTH) {
+                        throw wrong_length_error(head.msg_length, MSG_SYSTEM_CAPACITY_REQUEST_LENGTH);
+                }
+
+                forward(head.msg_length);
+
+                return head.topic_id;
+        }
+
         const uint8_t *Message::get_data() const {
                 return data;
         }

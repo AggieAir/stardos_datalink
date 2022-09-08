@@ -306,6 +306,7 @@ void Datalink::load_mountpoints() {
 }
 
 void Datalink::send_buffered_message() {
+        RCLCPP_DEBUG(this->get_logger(), "Trying to send buffered message");
         if (send_telemetry(buffered_message) == MavlinkPassthrough::Result::Success) {
                 RCLCPP_INFO(this->get_logger(), "Resetting message buffer");
                 buffered_message.reset();
@@ -360,6 +361,7 @@ void Datalink::check_systems() {
                                         MAVLINK_MSG_ID_LOGGING_DATA,
                                         std::bind(&Datalink::array_received_callback, this, _1));
 
+                        RCLCPP_DEBUG(this->get_logger(), "setting up buffered message sending timer");
                         send_telemetry_timer = this->create_wall_timer(
                                         1000ms,
                                         std::bind(&Datalink::send_buffered_message, this));
@@ -788,6 +790,8 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                         auto result = cached_systems.find(head.topic_id);
                         if (result == cached_systems.end()) {
                                 RCLCPP_ERROR(this->get_logger(), "System %d not cached!", head.topic_id);
+                                this->buffered_message.push_system_capacity_request_message(head.topic_id);
+                                RCLCPP_DEBUG(this->get_logger(), "Pushed system capacity request (size=%d)", buffered_message.get_offset());
                                 continue;
                         }
 
@@ -819,8 +823,6 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                                 out.disks.push_back(*v.second);
                         }
 
-                        RCLCPP_INFO(this->get_logger(), "yes");
-
                         system_status_publishers[head.topic_id]->publish(out);
 
                         if (!this->starcommand_publisher) continue;
@@ -844,6 +846,27 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                         down.origin = system_status_publishers[head.topic_id]->get_topic_name();
 
                         starcommand_publisher->publish(down);
+                } else if (head.msg_type == floattelem::MSG_ID_SYSTEM_CAPACITY_REQUEST) {
+                        uint8_t id = message.pop_system_capacity_request_message();
+
+                        RCLCPP_INFO(
+                                this->get_logger(),
+                                "Got system status request for system %d",
+                                id
+                        );
+
+                        auto result = this->cached_systems.find(id);
+                        if (result == this->cached_systems.end()) {
+                                RCLCPP_ERROR(
+                                        this->get_logger(),
+                                        "System status request for id %d was for unknown system",
+                                        id
+                                );
+                        } else {
+                                TelemMessage tmsg;
+                                tmsg.push_system_capacity_message(&result->second, id);
+                                this->send_telemetry(tmsg);
+                        }
                 } else {
                         RCLCPP_ERROR(
                                 this->get_logger(),

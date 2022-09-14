@@ -7,14 +7,9 @@
                 "targetcompid": 190,
                 "autopilot_telemetry": true,
                 "publish_system_status": false,
-                "extra_config_directory": "/home/richard/workspaces/datalink/src/stardos_datalink/files",
-                "heartbeat": {
-                        "pub": ["/gcs/topic_a", "/gcs/topic_b"],
-                        "sub": ["/air/topic_c", "/air/topic_d"]
-                },
-                "control": {
-                        "pub": ["/gcs/command_e", "/gcs/command_f"],
-                        "sub": ["/air/command_g", "/air/command_h"]
-                }
+                "publish_default_topics": false,
+                "detect_environment": true,
+                "extra_config_directory": "/home/richard/workspaces/camera/src/stardos_datalink/files",
+                "starcommand": false
         }
 }

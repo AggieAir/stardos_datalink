@@ -43,27 +43,41 @@ namespace floattelem {
         bool Message::push_heartbeat_message(NodeHeartbeat::SharedPtr msg, uint8_t topic_id) {
                 /*  bits  bytes  hword
                  *  0:23   0- 2   0- 1  header
-                 * 24:31      3         unused
-                 * 32:47   4- 5      2  state
-                 * 48:63   6- 7      3  errors
+                 * 24:31      3         state
+                 * 32:63   4- 7   2- 3  errors
                  * 64:79   8- 9      4  requests
                  * 80:95  10-11      5  failures
+                 * 96: n  12- n   6- n  data
                  */
 
                 if (!check_space(MSG_LENGTH_HEARTBEAT)) {
                         return false;
                 }
 
-                this->push_header(MSG_ID_HEARTBEAT, MSG_LENGTH_HEARTBEAT, topic_id);
+                int last_byte_index = -1;
+                for (int i = 0; i < msg->data.size(); i++) {
+                        if (msg->data[i] != 0) {
+                                last_byte_index = i;
+                        }
+                }
 
+                int length = MSG_LENGTH_HEARTBEAT + last_byte_index + 1;
+                this->push_header(MSG_ID_HEARTBEAT, length, topic_id);
+
+                uint8_t  *data8  = data_u8_mut();
                 uint16_t *data16 = data_u16_mut();
+                uint32_t *data32 = data_u32_mut();
 
-                data16[2] = msg->state;
-                data16[3] = msg->errors;
+                data8[3] = msg->state;
+                data32[1] = msg->errors;
                 data16[4] = msg->requests;
                 data16[5] = msg->failures;
 
-                finalize(MSG_LENGTH_HEARTBEAT);
+                for (int i = 0; i <= last_byte_index; i++) {
+                        data8[12 + i] = msg->data[i];
+                }
+
+                finalize(length);
 
                 return true;
         }
@@ -75,20 +89,27 @@ namespace floattelem {
                         throw  wrong_id_error(head.msg_type, MSG_ID_HEARTBEAT);
                 }
                 
-                if (head.msg_length != MSG_LENGTH_HEARTBEAT) {
+                if (head.msg_length < MSG_LENGTH_HEARTBEAT) {
                         throw wrong_length_error(head.msg_length, MSG_LENGTH_HEARTBEAT);
                 }
 
+                const uint8_t  *data8  = data_u8();
                 const uint16_t *data16 = data_u16();
+                const uint32_t *data32 = data_u32();
 
                 NodeHeartbeat ret = NodeHeartbeat();
 
-                ret.state = data16[2];
-                ret.errors = data16[3];
+                ret.state    = data8[3];
+                ret.errors   = data32[1];
                 ret.requests = data16[4];
                 ret.failures = data16[5];
 
-                forward(MSG_LENGTH_HEARTBEAT);
+                int last_byte_index = head.msg_length - MSG_LENGTH_HEARTBEAT;
+                for (int i = 0; i < last_byte_index; i++) {
+                        ret.data[i] = data8[12 + i];
+                }
+
+                forward(head.msg_length);
 
                 std::cout << "Popped message, offset=" << (int) offset << "\n";
 
@@ -309,6 +330,35 @@ namespace floattelem {
                 forward(localoffset);
 
                 return ret;
+        }
+
+        bool Message::push_system_capacity_request_message(uint8_t topic_id) {
+                /*  bits  bytes
+                 *  0:23   0- 2  header
+                 * 24: n   3- n  action
+                 */
+
+                this->push_header(MSG_ID_SYSTEM_CAPACITY_REQUEST, MSG_SYSTEM_CAPACITY_REQUEST_LENGTH, topic_id);
+
+                finalize(MSG_SYSTEM_CAPACITY_REQUEST_LENGTH);
+
+                return true;
+        }
+
+        uint8_t Message::pop_system_capacity_request_message() {
+                Header head = next_header();
+
+                if (head.msg_type != MSG_ID_SYSTEM_CAPACITY_REQUEST) {
+                        throw  wrong_id_error(head.msg_type, MSG_ID_CONTROL);
+                }
+                
+                if (head.msg_length != MSG_SYSTEM_CAPACITY_REQUEST_LENGTH) {
+                        throw wrong_length_error(head.msg_length, MSG_SYSTEM_CAPACITY_REQUEST_LENGTH);
+                }
+
+                forward(head.msg_length);
+
+                return head.topic_id;
         }
 
         const uint8_t *Message::get_data() const {

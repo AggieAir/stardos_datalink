@@ -1,5 +1,6 @@
 #include <fstream>
 #include <functional>
+#include <filesystem>
 #include <iostream>
 #include <chrono>
 #include <string.h>
@@ -23,6 +24,8 @@
 #include "stardos_interfaces/msg/system_status.hpp"
 #include "stardos_interfaces/msg/star_command_downlink.hpp"
 #include "stardos_interfaces/msg/star_command_uplink.hpp"
+#include "stardos_interfaces/srv/topic_list.hpp"
+#include "stardos_interfaces/srv/star_command_topics.hpp"
 
 #include "datalink.hpp"
 #include "floattelem.hpp"
@@ -30,17 +33,8 @@
 using namespace mavsdk;
 using namespace std::literals::chrono_literals;
 using namespace std::placeholders;
-
-using rcl_interfaces::msg::ParameterDescriptor;
-using stardos_interfaces::msg::NodeHeartbeat;
-using stardos_interfaces::msg::Control;
-using stardos_interfaces::msg::GlobalPosition;
-using stardos_interfaces::msg::GPSPosition;
-using stardos_interfaces::msg::Attitude;
-using stardos_interfaces::msg::SystemTime;
-using stardos_interfaces::msg::SystemStatus;
-using stardos_interfaces::msg::StarCommandDownlink;
-using stardos_interfaces::msg::StarCommandUplink;
+using namespace stardos_interfaces::msg;
+using namespace stardos_interfaces::srv;
 
 typedef floattelem::Message TelemMessage;
 typedef floattelem::Header TelemHeader;
@@ -56,22 +50,30 @@ Datalink::Datalink(
         // bool autopilot_telemetry,
         // bool starcommand,
         // bool publish_system_status,
-        const Json::Value& config
-) : Node(name),
-        name{name},
+        const Json::Value config
+) : rclcpp::Node(name),
         config{config},
-        array_id{0},
-        heartbeat_subscriptions{std::vector<rclcpp::Subscription<NodeHeartbeat>::SharedPtr>()},
-        signal_subscriptions{std::vector<rclcpp::Subscription<Control>::SharedPtr>()},
-        heartbeat_publishers{std::vector<rclcpp::Publisher<NodeHeartbeat>::SharedPtr>()},
-        signal_publishers{std::vector<rclcpp::Publisher<Control>::SharedPtr>()},
         buffered_message{TelemMessage()}
 {
-        ParameterDescriptor ro;
-        ro.read_only = true;
-
 	configure();
 	connect();
+
+        if (config["detect_environment"].asBool()) {
+		RCLCPP_INFO(this->get_logger(), "Attempting to detect environment...");
+                while (payload == "") {
+                        detect_environment();
+                }
+        } else {
+                aircraft = "aircraft";
+                payload = "payload";
+        }
+
+        RCLCPP_INFO(
+                this->get_logger(),
+                "Running on aircraft '%s' with payload '%s'",
+                aircraft.c_str(),
+                payload.c_str()
+        );
 
         RCLCPP_INFO(this->get_logger(), "Creating telemetry publisher");
 
@@ -88,6 +90,26 @@ Datalink::Datalink(
 	get_system_timer = this->create_wall_timer(1000ms, std::bind(&Datalink::check_systems, this));
 
         setup_floattelem();
+}
+
+void Datalink::detect_environment() {
+        std::string ns(get_namespace());
+        int idx = ns.find('/', 1);
+        aircraft = ns.substr(1, idx - 1);
+
+        std::vector<std::string> node_names = get_node_names();
+
+        for (std::string n : node_names) {
+                int idx1 = n.find('/', 1);
+                int idx2 = n.find('/', idx1 + 1);
+                std::string computer = n.substr(idx1 + 1, idx2 - idx1 - 1);
+
+                if (computer != "copilot") {
+                        payload = computer;
+
+                        break;
+                }
+        }
 }
 
 void Datalink::configure() {
@@ -109,7 +131,6 @@ void Datalink::configure() {
                         !filesval.isString()
         ) {
                 RCLCPP_ERROR(this->get_logger(), "System and Component IDs must be ints within [0, 255]");
-                throw std::exception();
         }
 
         sysid = sysidval.asUInt();
@@ -145,46 +166,129 @@ void Datalink::connect() {
         dc.add_any_connection(config["connection_url"].asString());
 }
 
-void Datalink::setup_autopilot_telemetry() {
-        RCLCPP_INFO(this->get_logger(), "Creating MAVLink bridge publishers");
+void Datalink::setup_default_heartbeat_topics() {
+        std::filesystem::path copilot_path("/"), payload_path("/");
+        copilot_path = copilot_path / aircraft / "copilot" / "heartbeat";
+        payload_path = payload_path / aircraft / payload / "heartbeat";
+        std::vector<std::string> topics{copilot_path.string(), payload_path.string()};
 
-        gps_raw_publisher = this->create_publisher<GPSPosition>("gps_raw", 10);
-        gps_position_publisher = this->create_publisher<GPSPosition>("gps_position", 10);
-        global_position_publisher = this->create_publisher<GlobalPosition>("global_position", 10);
-        attitude_publisher = this->create_publisher<Attitude>("attitude", 10);
-        systime_publisher = this->create_publisher<SystemTime>("system_time", 10);
+        if (config["publish_default_topics"].asBool()) {
+                fill_publisher_list<NodeHeartbeat>(
+                        topics,
+                        heartbeat_publishers,
+                        heartbeat_publisher_ids
+                );
+        } else {
+                fill_subscriber_list<NodeHeartbeat>(
+                        topics,
+                        heartbeat_subscriptions,
+                        heartbeat_subscription_ids,
+                        std::bind(&Datalink::heartbeat_callback, this, _1, _2)
+                );
+        }
+}
+
+void Datalink::setup_default_control_topics() {
+        std::vector<std::string> topics{"/start_mission", "/end_mission"};
+
+        if (!config["publish_default_topics"].asBool()) {
+                fill_publisher_list<Control>(
+                        topics,
+                        signal_publishers,
+                        control_publisher_ids
+                );
+        } else {
+                fill_subscriber_list<Control>(
+                        topics,
+                        signal_subscriptions,
+                        control_subscription_ids,
+                        std::bind(&Datalink::signal_callback, this, _1, _2)
+                );
+        }
+}
+
+void Datalink::setup_autopilot_telemetry() {
+        if (config["autopilot_telemetry"].asBool()) {
+                RCLCPP_INFO(this->get_logger(), "Creating MAVLink bridge publishers");
+
+                gps_raw_publisher = this->create_publisher<GPSPosition>("gps_raw", 10);
+                gps_position_publisher = this->create_publisher<GPSPosition>("gps_position", 10);
+                global_position_publisher = this->create_publisher<GlobalPosition>("global_position", 10);
+                attitude_publisher = this->create_publisher<Attitude>("attitude", 10);
+                systime_publisher = this->create_publisher<SystemTime>("system_time", 10);
+        }
 }
 
 void Datalink::setup_starcommand(const std::string& downlink_topic, const std::string& uplink_topic) {
         starcommand_publisher = this->create_publisher<StarCommandDownlink>(downlink_topic, 10);
         starcommand_subscription = this->create_subscription<StarCommandUplink>(
-                        uplink_topic,
-                        10,
-                        std::bind(&Datalink::uplink_callback, this, _1));
+                uplink_topic,
+                10,
+                std::bind(&Datalink::uplink_callback, this, _1)
+        );
 }
 
 void Datalink::load_system_statuses() {
-        std::ifstream file(extra_config_directory + "/systems.json");
-        Json::Value root;
+        // std::ifstream file(extra_config_directory + "/systems.json");
+        // Json::Value root;
 
-        file >> root;
+        // file >> root;
 
-        for (auto v = root.begin(); v != root.end(); v++) {
-                uint8_t     id    = (*v)["id"].asInt();
-                std::string name  = (*v)["name"].asString();
-                std::string topic = (*v)["topic"].asString();
+        // for (auto v = root.begin(); v != root.end(); v++) {
+        //         uint8_t     id    = (*v)["id"].asInt();
+        //         std::string name  = (*v)["name"].asString();
+        //         std::string topic = (*v)["topic"].asString();
 
-                if (config["publish_system_status"].asBool()) {
-                        system_status_publishers[id] = this->create_publisher<SystemStatus>(topic, 10);
-                } else {
-                        system_status_subscriptions[id] = this->create_subscription<SystemStatus>(
-                                topic,
-                                10,
-                                [this, id] (SystemStatus::SharedPtr msg) {
-                                        this->system_status_callback(id, msg);
-                                }
-                        );
-                }
+        //         if (config["publish_system_status"].asBool()) {
+        //                 system_status_publishers[id] = this->create_publisher<SystemStatus>(topic, 10);
+        //         } else if (payloads.find(name) == computers.end()) {
+        //                 system_status_subscriptions[id] = this->create_subscription<SystemStatus>(
+        //                         topic,
+        //                         10,
+        //                         [this, id] (SystemStatus::SharedPtr msg) {
+        //                                 this->system_status_callback(id, msg);
+        //                         }
+        //                 );
+        //         }
+        // }
+        
+        std::filesystem::path payload_path = std::filesystem::path("/") / aircraft / payload / "status";
+        std::filesystem::path copilot_path = std::filesystem::path("/") / aircraft / "copilot" / "status";
+
+        RCLCPP_INFO(
+                this->get_logger(),
+                "%s on %s and %s for system stataus messages",
+                config["publish_system_status"].asBool() ? "publishing" : "listening",
+                payload_path.c_str(),
+                copilot_path.c_str()
+        );
+
+        if (config["publish_system_status"].asBool()) {
+                system_status_publishers[0] = this->create_publisher<SystemStatus>(
+                        payload_path,
+                        10
+                );
+
+                system_status_publishers[1] = this->create_publisher<SystemStatus>(
+                        copilot_path,
+                        10
+                );
+        } else {
+                system_status_subscriptions[0] = this->create_subscription<SystemStatus>(
+                        payload_path,
+                        10,
+                        [this] (SystemStatus::SharedPtr msg) {
+                                this->system_status_callback(0, msg);
+                        }
+                );
+
+                system_status_subscriptions[1] = this->create_subscription<SystemStatus>(
+                        copilot_path,
+                        10,
+                        [this] (SystemStatus::SharedPtr msg) {
+                                this->system_status_callback(1, msg);
+                        }
+                );
         }
 }
 
@@ -203,6 +307,7 @@ void Datalink::load_mountpoints() {
 }
 
 void Datalink::send_buffered_message() {
+        RCLCPP_DEBUG(this->get_logger(), "Trying to send buffered message");
         if (send_telemetry(buffered_message) == MavlinkPassthrough::Result::Success) {
                 RCLCPP_INFO(this->get_logger(), "Resetting message buffer");
                 buffered_message.reset();
@@ -210,7 +315,8 @@ void Datalink::send_buffered_message() {
 }
 
 MavlinkPassthrough::Result Datalink::send_telemetry(const TelemMessage& msg) {
-        if (msg.is_empty()) {
+        RCLCPP_DEBUG(this->get_logger(), "Attempting to send telemetry (size=%hhu)", msg.get_offset());
+        if (!target_passthrough || msg.is_empty()) {
                 return MavlinkPassthrough::Result::Unknown;
         }
 
@@ -256,6 +362,7 @@ void Datalink::check_systems() {
                                         MAVLINK_MSG_ID_LOGGING_DATA,
                                         std::bind(&Datalink::array_received_callback, this, _1));
 
+                        RCLCPP_DEBUG(this->get_logger(), "setting up buffered message sending timer");
                         send_telemetry_timer = this->create_wall_timer(
                                         1000ms,
                                         std::bind(&Datalink::send_buffered_message, this));
@@ -329,11 +436,10 @@ void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
                 RCLCPP_ERROR(this->get_logger(), "Option string too long; will be truncated");
         }
 
-        if (!buffered_message.push_control_message(ctrl->options, id)) {
-                send_buffered_message();
-                buffered_message.reset();
-                buffered_message.push_control_message(ctrl->options, id);
-        }
+        TelemMessage tmsg;
+        tmsg.push_control_message(ctrl->options, id);
+
+        send_telemetry(tmsg);
 }
 
 void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
@@ -391,40 +497,111 @@ void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
 }
 
 void Datalink::setup_floattelem() {
-        RCLCPP_INFO(this->get_logger(), "Creating heartbeat subscribers");
-        this->fill_subscriber_list<NodeHeartbeat>(
-                config["heartbeat"]["sub"],
-                this->heartbeat_subscriptions,
-                this->heartbeat_subscription_ids,
-                std::bind(&Datalink::heartbeat_callback, this, _1, _2));
+        RCLCPP_INFO(this->get_logger(), "Setting up FloatTelem configuration services");
 
-        RCLCPP_INFO(this->get_logger(), "Creating heartbeat publishers");
-        this->fill_publisher_list<NodeHeartbeat>(
-                config["heartbeat"]["pub"],
-                this->heartbeat_publishers,
-                this->heartbeat_publisher_ids);
+        // services.push_back(this->create_service<TopicList>(
+        //         "heartbeat_sub",
+        //         std::bind(
+        //                 &Datalink::subscribe_service_callback<NodeHeartbeat>,
+        //                 this, _1, _2,
+        //                 this->heartbeat_subscriptions,
+        //                 this->heartbeat_subscription_ids,
+        //                 std::bind(&Datalink::heartbeat_callback, this, _1, _2)
+        //         )
+        // ));
+        
+        setup_default_heartbeat_topics();
+        setup_default_control_topics();
 
-        RCLCPP_INFO(this->get_logger(), "Creating control message subscribers");
-        this->fill_subscriber_list<Control>(
-                config["control"]["sub"],
-                this->signal_subscriptions,
-                this->control_subscription_ids,
-                std::bind(&Datalink::signal_callback, this, _1, _2));
+        services.push_back(this->create_service<TopicList>(
+                "heartbeat_sub",
+                [this] (
+                        TopicList::Request::SharedPtr req,
+                        TopicList::Response::SharedPtr resp
+                ) {
+                        this->heartbeat_subscriptions.clear();
+                        this->heartbeat_subscription_ids.clear();
 
-        RCLCPP_INFO(this->get_logger(), "Creating control message publishers");
-        this->fill_publisher_list<Control>(
-                config["control"]["pub"],
-                this->signal_publishers,
-                this->control_publisher_ids
-        );
+                        this->setup_default_heartbeat_topics();
+                        this->subscribe_service_callback<NodeHeartbeat>(
+                                req, resp,
+                                this->heartbeat_subscriptions,
+                                this->heartbeat_subscription_ids,
+                                std::bind(&Datalink::heartbeat_callback, this, _1, _2)
+                        );
+                }
+        ));
 
-        if (config["starcommand"].type() != Json::nullValue) {
-                RCLCPP_INFO(this->get_logger(), "Setting up StarCommand pub/sub");
-                setup_starcommand(
-                        config["starcommand"]["downlink"].asString(),
-                        config["starcommand"]["uplink"].asString()
-                );
-        }
+        services.push_back(this->create_service<TopicList>(
+                "heartbeat_pub",
+                [this] (
+                        TopicList::Request::SharedPtr req,
+                        TopicList::Response::SharedPtr resp
+                ) {
+                        this->heartbeat_publishers.clear();
+                        this->heartbeat_publisher_ids.clear();
+
+                        this->setup_default_heartbeat_topics();
+                        this->publish_service_callback<NodeHeartbeat>(
+                                req, resp,
+                                this->heartbeat_publishers,
+                                this->heartbeat_publisher_ids
+                        );
+                }
+        ));
+
+        services.push_back(this->create_service<TopicList>(
+                "control_sub",
+                [this] (
+                        TopicList::Request::SharedPtr req,
+                        TopicList::Response::SharedPtr resp
+                ) {
+                        this->signal_subscriptions.clear();
+                        this->control_subscription_ids.clear();
+
+                        this->setup_default_control_topics();
+                        this->subscribe_service_callback<Control>(
+                                req, resp,
+                                this->signal_subscriptions,
+                                this->control_subscription_ids,
+                                std::bind(&Datalink::signal_callback, this, _1, _2)
+                        );
+                }
+        ));
+
+        services.push_back(this->create_service<TopicList>(
+                "control_pub",
+                [this] (
+                        TopicList::Request::SharedPtr req,
+                        TopicList::Response::SharedPtr resp
+                ) {
+                        this->signal_publishers.clear();
+                        this->control_publisher_ids.clear();
+
+                        this->setup_default_control_topics();
+                        this->publish_service_callback<Control>(
+                                req, resp,
+                                this->signal_publishers,
+                                this->control_publisher_ids
+                        );
+                }
+        ));
+
+        services.push_back(this->create_service<StarCommandTopics>(
+                "starcommand_topics",
+                [this] (
+                                StarCommandTopics::Request::SharedPtr req,
+                                StarCommandTopics::Response::SharedPtr resp
+                ) {
+                        RCLCPP_INFO(this->get_logger(), "Setting up StarCommand pub/sub");
+                        setup_starcommand(
+                                req->downlink,
+                                req->uplink
+                        );
+
+                        resp->complete = true;
+                }
+        ));
 }
 
 void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
@@ -442,9 +619,13 @@ void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
                 NodeHeartbeat hb;
 
                 hb.state = root["state"].asInt();
-                hb.requests = root["requests"].asInt();
-                hb.failures = root["failures"].asInt();
-                hb.errors = root["errors"].asInt();
+                hb.errors   = root["errors"].asUInt();
+                hb.requests = root["requests"].asUInt();
+                hb.failures = root["failures"].asUInt();
+
+                for (Json::ArrayIndex i = 0; i < root["data"].size(); i++) {
+                        hb.data[i] = root["data"][i].asUInt();
+                }
 
                 this->heartbeat_callback(
                         heartbeat_subscription_ids.at(msg->destination),
@@ -453,13 +634,47 @@ void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
         } else if (msg->type == "control") {
                 Control ctrl;
 
-                ctrl.options = root["options"].asInt();
+                ctrl.options = root["options"].asString();
 
                 this->signal_callback(
                         control_subscription_ids.at(msg->destination),
                         std::shared_ptr<Control>(&ctrl)
                 );
         }
+}
+
+template<typename T>
+void Datalink::subscribe_service_callback(
+        TopicList::Request::SharedPtr req,
+        TopicList::Response::SharedPtr resp,
+        std::vector<typename rclcpp::Subscription<T>::SharedPtr> &dest,
+        std::map<std::string, uint8_t> &mapping,
+        std::function<void(int, std::shared_ptr<T>)> callback
+) {
+        fill_subscriber_list<T>(
+                req->topics,
+                dest,
+                mapping,
+                callback
+        );
+
+        resp->final_index = dest.size() - 1;
+}
+
+template<typename T>
+void Datalink::publish_service_callback(
+        TopicList::Request::SharedPtr req,
+        TopicList::Response::SharedPtr resp,
+        std::vector<typename rclcpp::Publisher<T>::SharedPtr> &dest,
+        std::map<std::string, uint8_t> &mapping
+) {
+        fill_publisher_list<T>(
+                req->topics,
+                dest,
+                mapping
+        );
+
+        resp->final_index = dest.size() - 1;
 }
 
 void Datalink::array_received_callback(const mavlink_message_t& msg) {
@@ -507,19 +722,20 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                         RCLCPP_DEBUG(this->get_logger(), "Publishing on topic %s", pub->get_topic_name());
                         pub->publish(ros_message);
 
-                        if (config["starcommand"].type() == Json::nullValue) continue;
+                        if (!starcommand_publisher) continue;
 
                         StarCommandDownlink down;
 
                         Json::Value v(Json::objectValue);
 
-                        v["state"] = Json::Value(ros_message.state);
+                        v["state"]    = Json::Value(ros_message.state);
                         v["requests"] = Json::Value(ros_message.requests);
                         v["failures"] = Json::Value(ros_message.failures);
-                        v["errors"] = Json::Value(ros_message.errors);
+                        v["errors"]   = Json::Value(ros_message.errors);
+                        copy_to_json_array(ros_message.data, v["data"]);
 
                         std::ostringstream json_out;
-                        json_out << Json::StreamWriterBuilder().newStreamWriter();
+                        json_out << v;
 
                         down.type = "node";
                         down.payload = json_out.str();
@@ -543,7 +759,7 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 
                         this->signal_publishers[head.topic_id]->publish(c);
 
-                        if (config["starcommand"].type() == Json::nullValue) continue;
+                        if (!starcommand_publisher) continue;
 
                         StarCommandDownlink down;
 
@@ -575,37 +791,36 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                         auto result = cached_systems.find(head.topic_id);
                         if (result == cached_systems.end()) {
                                 RCLCPP_ERROR(this->get_logger(), "System %d not cached!", head.topic_id);
+
+				TelemMessage tmsg;
+                                tmsg.push_system_capacity_request_message(head.topic_id);
+				this->send_telemetry(tmsg);
+
+                                RCLCPP_DEBUG(this->get_logger(), "Requested system capacity message.");
                                 continue;
                         }
 
                         floattelem::SystemCapacity &cap = result->second;
 
-                        RCLCPP_DEBUG(this->get_logger(), "Preparing ROS message");
                         SystemStatus out;
-                        RCLCPP_DEBUG(this->get_logger(), "Adding CPU info");
                         out.cpu_count = in.cpu_usage.size();
                         out.cpu_usage = in.cpu_usage;
-                        RCLCPP_DEBUG(this->get_logger(), "Adding uptime info");
                         out.uptime = in.uptime;
 
-                        RCLCPP_DEBUG(this->get_logger(), "Creating memory array");
                         out.memory = std::array<uint32_t, 2> {
                                 (uint32_t) ((float) in.memory / USHRT_MAX * cap.max_memory_mb),
                                 cap.max_memory_mb
                         };
 
-                        RCLCPP_DEBUG(this->get_logger(), "Creating swap array");
                         out.swap = std::array<uint32_t, 2> {
                                 (uint32_t) ((float) in.swap / USHRT_MAX * cap.max_swap_mb),
                                 cap.max_swap_mb
                         };
 
-                        RCLCPP_DEBUG(this->get_logger(), "Creating mounts vector");
                         for (auto v = in.mounts.begin(); v != in.mounts.end(); v++) {
                                 out.mounts.push_back(*v >= mountpoint_names.size() ? "UNKNOWN" : mountpoint_names[*v]);
                         }
 
-                        RCLCPP_DEBUG(this->get_logger(), "Creating disks and disk size vector");
                         for (auto v = std::make_pair(in.disks.begin(), cap.disks_size_mb.begin()); v.first != in.disks.end(); v.first++, v.second++) {
                                 out.disks.push_back(
                                         (uint32_t) ((float) *v.first / USHRT_MAX * *v.second)
@@ -613,8 +828,50 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                                 out.disks.push_back(*v.second);
                         }
 
-                        RCLCPP_DEBUG(this->get_logger(), "Publishing to %s", system_status_publishers[head.topic_id]->get_topic_name());
                         system_status_publishers[head.topic_id]->publish(out);
+
+                        if (!this->starcommand_publisher) continue;
+
+                        StarCommandDownlink down;
+
+                        Json::Value v(Json::objectValue);
+
+                        copy_to_json_array(out.cpu_usage, v["cpu_usage"]);
+                        copy_to_json_array(out.disks, v["disks"]);
+                        copy_to_json_array(out.mounts, v["mounts"]);
+                        copy_to_json_array(out.memory, v["memory"]);
+                        copy_to_json_array(out.swap, v["swap"]);
+                        v["uptime"] = out.uptime;
+                        v["cpu_count"] = out.cpu_count;
+
+                        std::ostringstream ss;
+                        ss << v;
+                        down.type = "system";
+                        down.payload = ss.str();
+                        down.origin = system_status_publishers[head.topic_id]->get_topic_name();
+
+                        starcommand_publisher->publish(down);
+                } else if (head.msg_type == floattelem::MSG_ID_SYSTEM_CAPACITY_REQUEST) {
+                        uint8_t id = message.pop_system_capacity_request_message();
+
+                        RCLCPP_INFO(
+                                this->get_logger(),
+                                "Got system status request for system %d",
+                                id
+                        );
+
+                        auto result = this->cached_systems.find(id);
+                        if (result == this->cached_systems.end()) {
+                                RCLCPP_ERROR(
+                                        this->get_logger(),
+                                        "System status request for id %d was for unknown system",
+                                        id
+                                );
+                        } else {
+                                TelemMessage tmsg;
+                                tmsg.push_system_capacity_message(&result->second, id);
+                                this->send_telemetry(tmsg);
+                        }
                 } else {
                         RCLCPP_ERROR(
                                 this->get_logger(),
@@ -706,20 +963,19 @@ void Datalink::systime_received_callback(const mavlink_message_t& msg) const {
 
 template<typename T>
 void Datalink::fill_subscriber_list(
-                Json::Value& topics,
+                const std::vector<std::string> &topics,
                 std::vector<typename rclcpp::Subscription<T>::SharedPtr> &dest,
                 std::map<std::string, uint8_t> &mapping,
                 std::function<void(int, std::shared_ptr<T>)> callback
 ) {
-        int id = 0;
-        for (auto v = topics.begin(); v != topics.end(); v++) {
-                std::string topic = v->asString();
+        int id = dest.size();
 
-                RCLCPP_DEBUG(this->get_logger(), "subscribing to %s", topic.c_str());
+        for (auto topic = topics.begin(); topic != topics.end(); topic++) {
+                RCLCPP_DEBUG(this->get_logger(), "subscribing to %s", topic->c_str());
 
                 dest.push_back(
                         this->create_subscription<T>(
-                                topic,
+                                *topic,
                                 10,
                                 [this, id, callback] (std::shared_ptr<T> msg) {
                                         callback(id, msg);
@@ -727,7 +983,7 @@ void Datalink::fill_subscriber_list(
                         )
                 );
                 
-                mapping.insert(std::make_pair(topic, id));
+                mapping.insert(std::make_pair(*topic, id));
 
                 id++;
         }
@@ -735,25 +991,40 @@ void Datalink::fill_subscriber_list(
 
 template<typename T>
 void Datalink::fill_publisher_list(
-                Json::Value& topics,
+                const std::vector<std::string> &topics,
                 std::vector<typename rclcpp::Publisher<T>::SharedPtr> &dest,
                 std::map<std::string, uint8_t> &mapping
 ) {
-        int id = 0;
-        for (auto v = topics.begin(); v != topics.end(); v++) {
-                std::string topic = v->asString();
+        int id = dest.size();
 
-                RCLCPP_DEBUG(this->get_logger(), "subscribing to %s", topic.c_str());
+        for (auto topic = topics.begin(); topic != topics.end(); topic++) {
+                RCLCPP_DEBUG(this->get_logger(), "subscribing to %s", topic->c_str());
 
                 dest.push_back(
                         this->create_publisher<T>(
-                                topic,
+                                *topic,
                                 10
                         )
                 );
                 
-                mapping.insert(std::make_pair(topic, id));
+                mapping.insert(std::make_pair(*topic, id));
                 
                 id++;
+        }
+}
+
+template<typename T>
+void Datalink::copy_to_json_array(std::vector<T> &arr, Json::Value &val) {
+        val = Json::arrayValue;
+        for (Json::ArrayIndex i = 0; i < arr.size(); i++) {
+                val.append(arr[i]);
+        }
+}
+
+template<typename T, size_t N>
+void Datalink::copy_to_json_array(std::array<T, N> &arr, Json::Value &val) {
+        val = Json::arrayValue;
+        for (Json::ArrayIndex i = 0; i < arr.size(); i++) {
+                val.append(arr[i]);
         }
 }

@@ -33,6 +33,12 @@ namespace floattelem {
         constexpr uint8_t MSG_ID_SYSTEM_STATUS = 0x3;
         constexpr uint8_t MSG_SYSTEM_STATUS_STATIC_LENGTH = 12;
 
+        constexpr uint8_t MSG_ID_SYSTEM_CAPACITY = 0x4;
+        constexpr uint8_t MSG_SYSTEM_CAPACITY_STATIC_LENGTH = 12;
+
+        constexpr uint8_t MSG_ID_SYSTEM_CAPACITY_REQUEST = 0x5;
+        constexpr uint8_t MSG_SYSTEM_CAPACITY_REQUEST_LENGTH = 3;
+
         typedef struct {
                 std::vector<uint8_t> cpu_usage;
                 uint16_t memory;
@@ -41,9 +47,6 @@ namespace floattelem {
                 std::vector<uint8_t> mounts;
                 uint32_t uptime;
         } SlimSystemStatus;
-
-        constexpr uint8_t MSG_ID_SYSTEM_CAPACITY = 0x4;
-        constexpr uint8_t MSG_SYSTEM_CAPACITY_STATIC_LENGTH = 12;
 
         typedef struct __SystemCapacity {
                 uint32_t max_memory_mb;
@@ -102,6 +105,10 @@ namespace floattelem {
                 // system_capacity
                 bool push_system_capacity_message(SystemCapacity *in, uint8_t topic_id);
                 SystemCapacity pop_system_capacity_message();
+
+                // request_system_capacity
+                bool push_system_capacity_request_message(uint8_t topic_id);
+                uint8_t pop_system_capacity_request_message();
 
                 // Get the floats themselves
                 const uint8_t * get_data() const;

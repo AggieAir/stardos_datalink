@@ -59,6 +59,7 @@ Datalink::Datalink(
 	connect();
 
         if (config["detect_environment"].asBool()) {
+		RCLCPP_INFO(this->get_logger(), "Attempting to detect environment...");
                 while (payload == "") {
                         detect_environment();
                 }
@@ -790,8 +791,12 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                         auto result = cached_systems.find(head.topic_id);
                         if (result == cached_systems.end()) {
                                 RCLCPP_ERROR(this->get_logger(), "System %d not cached!", head.topic_id);
-                                this->buffered_message.push_system_capacity_request_message(head.topic_id);
-                                RCLCPP_DEBUG(this->get_logger(), "Pushed system capacity request (size=%d)", buffered_message.get_offset());
+
+				TelemMessage tmsg;
+                                tmsg.push_system_capacity_request_message(head.topic_id);
+				this->send_telemetry(tmsg);
+
+                                RCLCPP_DEBUG(this->get_logger(), "Requested system capacity message.");
                                 continue;
                         }
 

@@ -9,7 +9,7 @@
                 "publish_system_status": false,
                 "publish_default_topics": false,
                 "detect_environment": true,
-                "extra_config_directory": "/home/richard/workspaces/datalink/src/stardos_datalink/files",
+                "extra_config_directory": "/home/richard/workspaces/camera/src/stardos_datalink/files",
                 "starcommand": false
         }
 }

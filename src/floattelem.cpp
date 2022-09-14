@@ -338,10 +338,6 @@ namespace floattelem {
                  * 24: n   3- n  action
                  */
 
-                if (MSG_SYSTEM_CAPACITY_REQUEST_LENGTH) {
-                        return false;
-                }
-
                 this->push_header(MSG_ID_SYSTEM_CAPACITY_REQUEST, MSG_SYSTEM_CAPACITY_REQUEST_LENGTH, topic_id);
 
                 finalize(MSG_SYSTEM_CAPACITY_REQUEST_LENGTH);

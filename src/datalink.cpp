@@ -102,9 +102,11 @@ void Datalink::detect_environment() {
         for (std::string n : node_names) {
                 int idx1 = n.find('/', 1);
                 int idx2 = n.find('/', idx1 + 1);
+		int fidx = n.rfind('/');
                 std::string computer = n.substr(idx1 + 1, idx2 - idx1 - 1);
+		std::string node = n.substr(fidx + 1);
 
-                if (computer != "copilot") {
+                if (node == "control") {
                         payload = computer;
 
                         break;

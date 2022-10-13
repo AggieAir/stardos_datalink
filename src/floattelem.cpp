@@ -41,13 +41,15 @@ namespace floattelem {
         }
 
         bool Message::push_heartbeat_message(NodeHeartbeat::SharedPtr msg, uint8_t topic_id) {
-                /*  bits  bytes  hword
-                 *  0:23   0- 2   0- 1  header
-                 * 24:31      3         state
-                 * 32:63   4- 7   2- 3  errors
-                 * 64:79   8- 9      4  requests
-                 * 80:95  10-11      5  failures
-                 * 96: n  12- n   6- n  data
+                /*    bits  bytes  hword
+                 *   0: 23   0- 2   0- 1  header
+                 *  24: 31      3         state
+                 *  32: 63   4- 7   2- 3  errors
+                 *  64: 79   8- 9      4  requests
+                 *  80: 95  10-11      5  failures
+                 *  96:111  12-13      6  performance
+                 * 112:119     14   7     failures
+                 * 120:  n  15- n    - n  data
                  */
 
                 if (!check_space(MSG_LENGTH_HEARTBEAT)) {
@@ -72,9 +74,11 @@ namespace floattelem {
                 data32[1] = msg->errors;
                 data16[4] = msg->requests;
                 data16[5] = msg->failures;
+                data16[6] = msg->performance;
+                data8[14] = msg->queue_length;
 
                 for (int i = 0; i <= last_byte_index; i++) {
-                        data8[12 + i] = msg->data[i];
+                        data8[MSG_LENGTH_HEARTBEAT + i] = msg->data[i];
                 }
 
                 finalize(length);
@@ -99,14 +103,16 @@ namespace floattelem {
 
                 NodeHeartbeat ret = NodeHeartbeat();
 
-                ret.state    = data8[3];
-                ret.errors   = data32[1];
-                ret.requests = data16[4];
-                ret.failures = data16[5];
+                ret.state        = data8[3];
+                ret.errors       = data32[1];
+                ret.requests     = data16[4];
+                ret.failures     = data16[5];
+                ret.performance  = data16[6];
+                ret.queue_length = data8[14];
 
                 int last_byte_index = head.msg_length - MSG_LENGTH_HEARTBEAT;
                 for (int i = 0; i < last_byte_index; i++) {
-                        ret.data[i] = data8[12 + i];
+                        ret.data[i] = data8[MSG_LENGTH_HEARTBEAT + i];
                 }
 
                 forward(head.msg_length);

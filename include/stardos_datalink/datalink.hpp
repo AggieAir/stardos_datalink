@@ -8,6 +8,7 @@
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/mavlink_types.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
+#include <mavsdk/plugins/ftp/ftp.h>
 
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
@@ -53,6 +54,8 @@ private:
 	std::shared_ptr<mavsdk::System> autopilot;
         // Reference to MAVLink system to send telemetry to
 	std::shared_ptr<mavsdk::System> target;
+	// File Transfer Protocol, for transmitting longer messages.
+	std::shared_ptr<mavsdk::Ftp> ftp;
 
         std::string aircraft;
         std::string payload;
@@ -75,6 +78,8 @@ private:
 	std::shared_ptr<mavsdk::MavlinkPassthrough> autopilot_passthrough;
 	std::shared_ptr<mavsdk::MavlinkPassthrough> target_passthrough;
 
+	std::unique_ptr<std::thread> uploading_thread;
+
         // Runs every second; looks for systems
         rclcpp::TimerBase::SharedPtr get_system_timer;
         // Runs every second; looks for systems
@@ -87,6 +92,9 @@ private:
         std::vector<rclcpp::Subscription<Control>::SharedPtr> signal_subscriptions;
         // * for system status messages
         std::map<uint8_t, rclcpp::Subscription<SystemStatus>::SharedPtr> system_status_subscriptions;
+
+	rclcpp::Publisher<Control>::SharedPtr set_config_publisher;
+	rclcpp::Subscription<Control>::SharedPtr set_config_subscription;
 
         // map topics to topic ids
         std::map<std::string, uint8_t> heartbeat_subscription_ids;
@@ -169,6 +177,8 @@ private:
         void heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg);
         // Runs every time we get a control signal
         void signal_callback(int id, Control::SharedPtr msg);
+        // Runs every time we get a control signal
+        void set_config_callback(Control::SharedPtr msg);
         // Runs every time we get a system status message
         void system_status_callback(int id, SystemStatus::SharedPtr msg);
         // What to call when we see a control message
@@ -177,6 +187,8 @@ private:
         void control_callback(Control::SharedPtr msg);
         // Runs every time we get an uplink message
         void uplink_callback(StarCommandUplink::SharedPtr msg);
+
+	void uploading_callback(mavsdk::Ftp::Result, mavsdk::Ftp::ProgressData, std::promise<mavsdk::Ftp::Result>*);
 
         template<typename T>
         void subscribe_service_callback(

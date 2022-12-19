@@ -52,6 +52,7 @@ target_link_libraries(datalink_configured
 	datalink
         floattelem
 	jsoncpp_lib
+	rhash
 	MAVSDK::mavsdk)
 
 install(TARGETS

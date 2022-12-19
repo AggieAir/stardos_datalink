@@ -341,7 +341,6 @@ namespace floattelem {
         bool Message::push_system_capacity_request_message(uint8_t topic_id) {
                 /*  bits  bytes
                  *  0:23   0- 2  header
-                 * 24: n   3- n  action
                  */
 
                 this->push_header(MSG_ID_SYSTEM_CAPACITY_REQUEST, MSG_SYSTEM_CAPACITY_REQUEST_LENGTH, topic_id);
@@ -355,7 +354,7 @@ namespace floattelem {
                 Header head = next_header();
 
                 if (head.msg_type != MSG_ID_SYSTEM_CAPACITY_REQUEST) {
-                        throw  wrong_id_error(head.msg_type, MSG_ID_CONTROL);
+                        throw  wrong_id_error(head.msg_type, MSG_ID_SYSTEM_CAPACITY_REQUEST);
                 }
                 
                 if (head.msg_length != MSG_SYSTEM_CAPACITY_REQUEST_LENGTH) {
@@ -365,6 +364,35 @@ namespace floattelem {
                 forward(head.msg_length);
 
                 return head.topic_id;
+        }
+
+        bool Message::push_set_config_message(const uint8_t *digest) {
+                /*  bits  bytes
+                 *  0:23   0- 2  header
+                 */
+
+                this->push_header(MSG_ID_SET_CONFIG, MSG_SET_CONFIG_LENGTH, 0);
+		memcpy(data_u8_mut() + 4, digest, 16);
+
+                finalize(MSG_SET_CONFIG_LENGTH);
+
+                return true;
+        }
+
+        void Message::pop_set_config_message(uint8_t *buffer) {
+                Header head = next_header();
+
+                if (head.msg_type != MSG_ID_SET_CONFIG) {
+                        throw  wrong_id_error(head.msg_type, MSG_ID_SET_CONFIG);
+                }
+                
+                if (head.msg_length != MSG_SET_CONFIG_LENGTH) {
+                        throw wrong_length_error(head.msg_length, MSG_SET_CONFIG_LENGTH);
+                }
+
+		memcpy(buffer, data_u8() + 4, 16);
+
+                forward(head.msg_length);
         }
 
         const uint8_t *Message::get_data() const {

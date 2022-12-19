@@ -12,6 +12,8 @@
 #include <jsoncpp/json/value.h>
 #include <utility>
 
+#include <rhash.h>
+
 #include "rclcpp/publisher.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/timer.hpp"
@@ -55,6 +57,8 @@ Datalink::Datalink(
         config{config},
         buffered_message{TelemMessage()}
 {
+	rhash_library_init();
+
 	configure();
 	connect();
 
@@ -199,6 +203,9 @@ void Datalink::setup_default_control_topics() {
                         signal_publishers,
                         control_publisher_ids
                 );
+		
+		set_config_publisher = this->create_publisher<Control>("/set_config", 10);
+
         } else {
                 fill_subscriber_list<Control>(
                         topics,
@@ -206,6 +213,12 @@ void Datalink::setup_default_control_topics() {
                         control_subscription_ids,
                         std::bind(&Datalink::signal_callback, this, _1, _2)
                 );
+		
+		set_config_subscription = this->create_subscription<Control>(
+			"/set_config",
+			10,
+			std::bind(&Datalink::set_config_callback, this, _1)
+		);
         }
 }
 
@@ -368,6 +381,11 @@ void Datalink::check_systems() {
                         send_telemetry_timer = this->create_wall_timer(
                                         1000ms,
                                         std::bind(&Datalink::send_buffered_message, this));
+
+			ftp = std::make_shared<mavsdk::Ftp>(*target);
+
+			std::filesystem::create_directories("/opt/stardos/tmp/ftp");
+			ftp->set_root_directory("/opt/stardos/tmp/ftp");
                 }
 
                 if (s->get_system_id() == 1 &&
@@ -442,6 +460,51 @@ void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
         tmsg.push_control_message(ctrl->options, id);
 
         send_telemetry(tmsg);
+}
+
+void Datalink::set_config_callback(Control::SharedPtr ctrl) {
+        if (target_passthrough == nullptr) {
+                RCLCPP_INFO(this->get_logger(), "Tried to set config before target system was found");
+                return;
+        }
+
+	RCLCPP_INFO(this->get_logger(), "Setting config over mavlink");
+
+	{
+		std::ofstream fs("/opt/stardos/tmp/ftp/buffered_message.json");
+		fs << ctrl->options;
+		fs.close();
+	}
+
+	RCLCPP_INFO(this->get_logger(), "Wrote to the buffered_message file");
+
+	uploading_thread = std::make_unique<std::thread>([this, ctrl] {
+		RCLCPP_INFO(this->get_logger(), "Running on new thread");
+
+		std::promise<mavsdk::Ftp::Result> promise;
+		auto future = promise.get_future();
+
+		RCLCPP_INFO(this->get_logger(), "Preparing file upload");
+
+		ftp->upload_async(
+			"/opt/stardos/tmp/ftp/buffered_message.json",
+			"/",
+			std::bind(&Datalink::uploading_callback, this, _1, _2, &promise)
+		);
+
+		future.wait();
+
+		floattelem::Message tmsg;
+
+		uint8_t digest[16];
+
+		rhash_msg(RHASH_MD5, ctrl->options.c_str(), ctrl->options.length(), digest);
+
+		tmsg.push_set_config_message(digest);
+		send_telemetry(tmsg);
+
+		uploading_thread = nullptr;
+	});
 }
 
 void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
@@ -643,6 +706,14 @@ void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
                         std::shared_ptr<Control>(&ctrl)
                 );
         }
+}
+
+void Datalink::uploading_callback(mavsdk::Ftp::Result res, mavsdk::Ftp::ProgressData pd, std::promise<mavsdk::Ftp::Result> *promise) {
+	RCLCPP_INFO(this->get_logger(), "FTP result: %d, bytes: %d/%d", res, pd.bytes_transferred, pd.total_bytes);
+
+	if (res != mavsdk::Ftp::Result::Next) {
+		promise->set_value(res);
+	}
 }
 
 template<typename T>
@@ -874,11 +945,48 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                                 tmsg.push_system_capacity_message(&result->second, id);
                                 this->send_telemetry(tmsg);
                         }
+                } else if (head.msg_type == floattelem::MSG_ID_SET_CONFIG) {
+			uint8_t received_digest[16];
+			uint8_t generated_digest[16];
+
+                        message.pop_set_config_message(received_digest);
+
+                        RCLCPP_INFO(
+                                this->get_logger(),
+				"Got request to set config"
+                        );
+			
+			std::string config;
+			{
+				std::ifstream fs("/opt/stardos/tmp/ftp/buffered_message.json");
+				fs >> config;
+
+				rhash_msg(RHASH_MD5, config.c_str(), config.length(), generated_digest);
+			}
+
+			bool matches = true;
+			for (int i = 0; i < 16; i++) {
+				if (received_digest[i] != generated_digest[i]) {
+					matches = false;
+					break;
+				}
+			}
+
+			if (!matches) {
+				RCLCPP_ERROR(this->get_logger(), "buffered set_config message does not match");
+				continue;
+			}
+
+			Control ctrl;
+			ctrl.options = config;
+
+			set_config_publisher->publish(ctrl);
                 } else {
                         RCLCPP_ERROR(
                                 this->get_logger(),
                                 "Unrecognized message ID: %d",
                                 head.msg_type);
+			break;
                 }
         }
 }

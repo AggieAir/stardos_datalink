@@ -39,6 +39,9 @@ namespace floattelem {
         constexpr uint8_t MSG_ID_SYSTEM_CAPACITY_REQUEST = 0x5;
         constexpr uint8_t MSG_SYSTEM_CAPACITY_REQUEST_LENGTH = 3;
 
+        constexpr uint8_t MSG_ID_SET_CONFIG = 0x6;
+        constexpr uint8_t MSG_SET_CONFIG_LENGTH = 20;
+
         typedef struct {
                 std::vector<uint8_t> cpu_usage;
                 uint16_t memory;
@@ -109,6 +112,10 @@ namespace floattelem {
                 // request_system_capacity
                 bool push_system_capacity_request_message(uint8_t topic_id);
                 uint8_t pop_system_capacity_request_message();
+
+                // set_config
+                bool push_set_config_message(const uint8_t *digest);
+                void pop_set_config_message(uint8_t *buffer);
 
                 // Get the floats themselves
                 const uint8_t * get_data() const;

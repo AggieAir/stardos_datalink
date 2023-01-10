@@ -494,14 +494,20 @@ void Datalink::set_config_callback(Control::SharedPtr ctrl) {
 
 		future.wait();
 
+		RCLCPP_INFO(this->get_logger(), "Preparing telemetry message");
+
 		floattelem::Message tmsg;
 
 		uint8_t digest[16];
 
 		rhash_msg(RHASH_MD5, ctrl->options.c_str(), ctrl->options.length(), digest);
 
+		RCLCPP_INFO(this->get_logger(), "Sending telemetry message");
+
 		tmsg.push_set_config_message(digest);
 		send_telemetry(tmsg);
+
+		RCLCPP_INFO(this->get_logger(), "Sent telemetry message; invalidating thread");
 
 		uploading_thread = nullptr;
 	});

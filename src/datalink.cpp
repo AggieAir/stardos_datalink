@@ -952,8 +952,8 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                                 this->send_telemetry(tmsg);
                         }
                 } else if (head.msg_type == floattelem::MSG_ID_SET_CONFIG) {
-			uint8_t received_digest[16];
-			uint8_t generated_digest[16];
+			uint8_t *received_digest = new uint8_t[16];
+			uint8_t *generated_digest = new uint8_t[16];
 
                         message.pop_set_config_message(received_digest);
 
@@ -962,13 +962,20 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 				"Got request to set config"
                         );
 			
-			std::string config;
-			{
-				std::ifstream fs("/opt/stardos/tmp/ftp/buffered_message.json");
-				fs >> config;
+			std::ifstream fs("/opt/stardos/tmp/ftp/buffered_message.json");
+			std::string config(
+				(std::istreambuf_iterator<char>(fs)),
+				(std::istreambuf_iterator<char>())
+			);
 
-				rhash_msg(RHASH_MD5, config.c_str(), config.length(), generated_digest);
-			}
+			fs.close();
+
+			rhash_msg(RHASH_MD5, config.c_str(), config.length(), generated_digest);
+			char output[40];
+
+			rhash_print_bytes(output, generated_digest, rhash_get_digest_size(RHASH_MD5), RHPR_HEX | RHPR_UPPERCASE);
+
+			RCLCPP_INFO(this->get_logger(), "Length: %d; Hash: %s", config.length(), output);
 
 			bool matches = true;
 			for (int i = 0; i < 16; i++) {
@@ -979,14 +986,20 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 			}
 
 			if (!matches) {
-				RCLCPP_ERROR(this->get_logger(), "buffered set_config message does not match");
+				RCLCPP_ERROR(this->get_logger(), "Buffered set_config message does not match");
+				std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 				continue;
-			}
+			} 
 
 			Control ctrl;
 			ctrl.options = config;
 
 			set_config_publisher->publish(ctrl);
+
+			break;
+
+			delete[] received_digest;
+			delete[] generated_digest;
                 } else {
                         RCLCPP_ERROR(
                                 this->get_logger(),

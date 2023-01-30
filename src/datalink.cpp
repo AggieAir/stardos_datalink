@@ -502,15 +502,21 @@ void Datalink::set_config_callback(Control::SharedPtr ctrl) {
 
 		rhash_msg(RHASH_MD5, ctrl->options.c_str(), ctrl->options.length(), digest);
 
+		char output[40];
+
+		rhash_print_bytes(output, digest, rhash_get_digest_size(RHASH_MD5), RHPR_HEX | RHPR_UPPERCASE);
+
+		RCLCPP_INFO(this->get_logger(), "Length: %d; Hash: %s", ctrl->options.length(), output);
+
 		RCLCPP_INFO(this->get_logger(), "Sending telemetry message");
 
 		tmsg.push_set_config_message(digest);
 		send_telemetry(tmsg);
 
 		RCLCPP_INFO(this->get_logger(), "Sent telemetry message; invalidating thread");
-
-		uploading_thread = nullptr;
 	});
+
+	uploading_thread->detach();
 }
 
 void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {

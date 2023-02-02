@@ -93,8 +93,12 @@ private:
         // * for system status messages
         std::map<uint8_t, rclcpp::Subscription<SystemStatus>::SharedPtr> system_status_subscriptions;
 
+	// for configuration setting
 	rclcpp::Publisher<Control>::SharedPtr set_config_publisher;
 	rclcpp::Subscription<Control>::SharedPtr set_config_subscription;
+
+	// for MAVLink STATUSTEXT messages
+	rclcpp::Subscription<Control>::SharedPtr status_text_subscription;
 
         // map topics to topic ids
         std::map<std::string, uint8_t> heartbeat_subscription_ids;
@@ -177,8 +181,10 @@ private:
         void heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg);
         // Runs every time we get a control signal
         void signal_callback(int id, Control::SharedPtr msg);
-        // Runs every time we get a control signal
+        // Runs every time we get a configuration file
         void set_config_callback(Control::SharedPtr msg);
+        // Runs every time we get a STATUSTEXT control message
+        void status_text_callback(Control::SharedPtr msg);
         // Runs every time we get a system status message
         void system_status_callback(int id, SystemStatus::SharedPtr msg);
         // What to call when we see a control message

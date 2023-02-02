@@ -213,11 +213,17 @@ void Datalink::setup_default_control_topics() {
                         control_subscription_ids,
                         std::bind(&Datalink::signal_callback, this, _1, _2)
                 );
-		
+
 		set_config_subscription = this->create_subscription<Control>(
 			"/set_config",
 			10,
 			std::bind(&Datalink::set_config_callback, this, _1)
+		);
+
+		status_text_subscription = this->create_subscription<Control>(
+			"/status_text",
+			10,
+			std::bind(&Datalink::status_text_callback, this, _1)
 		);
         }
 }
@@ -506,7 +512,7 @@ void Datalink::set_config_callback(Control::SharedPtr ctrl) {
 
 		rhash_print_bytes(output, digest, rhash_get_digest_size(RHASH_MD5), RHPR_HEX | RHPR_UPPERCASE);
 
-		RCLCPP_INFO(this->get_logger(), "Length: %d; Hash: %s", ctrl->options.length(), output);
+		RCLCPP_INFO(this->get_logger(), "Length: %lu; Hash: %s", ctrl->options.length(), output);
 
 		RCLCPP_INFO(this->get_logger(), "Sending telemetry message");
 
@@ -517,6 +523,22 @@ void Datalink::set_config_callback(Control::SharedPtr ctrl) {
 	});
 
 	uploading_thread->detach();
+}
+
+void Datalink::status_text_callback(Control::SharedPtr ctrl) {
+	mavlink_statustext_t statustext;
+
+	strncpy(
+		statustext.text,
+		ctrl->options.c_str(),
+		std::min(50ul, strlen(ctrl->options.c_str()))
+       	);
+
+	mavlink_message_t msg;
+
+	mavlink_msg_statustext_encode(this->sysid, this->compid, &msg, &statustext);
+
+	target_passthrough->send_message(msg);
 }
 
 void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
@@ -981,7 +1003,7 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 
 			rhash_print_bytes(output, generated_digest, rhash_get_digest_size(RHASH_MD5), RHPR_HEX | RHPR_UPPERCASE);
 
-			RCLCPP_INFO(this->get_logger(), "Length: %d; Hash: %s", config.length(), output);
+			RCLCPP_INFO(this->get_logger(), "Length: %lu; Hash: %s", config.length(), output);
 
 			bool matches = true;
 			for (int i = 0; i < 16; i++) {
@@ -1112,7 +1134,7 @@ void Datalink::fill_subscriber_list(
                         this->create_subscription<T>(
                                 *topic,
                                 10,
-                                [this, id, callback] (std::shared_ptr<T> msg) {
+                                [id, callback] (std::shared_ptr<T> msg) {
                                         callback(id, msg);
                                 }
                         )

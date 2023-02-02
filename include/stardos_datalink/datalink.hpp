@@ -71,6 +71,8 @@ private:
         uint8_t targetsysid;
         uint8_t targetcompid;
 
+	uint16_t statustext_id = 0;
+
         // Where to look for additional configuration files
         std::string extra_config_directory;
 

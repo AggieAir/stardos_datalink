@@ -526,6 +526,15 @@ void Datalink::set_config_callback(Control::SharedPtr ctrl) {
 
 void Datalink::status_text_callback(Control::SharedPtr ctrl) {
 	mavlink_statustext_t statustext;
+	statustext.severity = MAV_SEVERITY_INFO;
+	statustext.chunk_seq = 0;
+	statustext.id = statustext_id;
+
+	if (statustext_id == UINT16_MAX) {
+		statustext_id = 0;
+	} else {
+		statustext_id++;
+	}
 
 	strncpy(
 		statustext.text,
@@ -537,7 +546,11 @@ void Datalink::status_text_callback(Control::SharedPtr ctrl) {
 
 	mavlink_msg_statustext_encode(this->sysid, this->compid, &msg, &statustext);
 
-	target_passthrough->send_message(msg);
+	if (target_passthrough == nullptr) {
+                RCLCPP_INFO(this->get_logger(), "Tried to send a message before target system was found");
+	} else {
+		target_passthrough->send_message(msg);
+	}
 }
 
 void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {

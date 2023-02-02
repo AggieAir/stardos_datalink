@@ -2,7 +2,7 @@
         "config": {
                 "sysid": 190,
                 "compid": 190,
-                "connection_url": "udp://127.0.0.1:11002",
+                "connection_url": "tcp://127.0.0.1:5760",
                 "targetsysid": 1,
                 "targetcompid": 220,
                 "autopilot_telemetry": false,

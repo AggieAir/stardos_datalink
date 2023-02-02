@@ -169,6 +169,13 @@ void Datalink::connect() {
                 RCLCPP_ERROR(this->get_logger(), "URL must be a string");
                 throw std::exception();
         }
+
+	RCLCPP_INFO(
+		this->get_logger(),
+		"Connecting to MAVLink with URL: '%s'",
+		config["connection_url"].asCString()
+	);
+
         dc.add_any_connection(config["connection_url"].asString());
 }
 

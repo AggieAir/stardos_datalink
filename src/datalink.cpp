@@ -206,6 +206,11 @@ void Datalink::setup_default_control_topics() {
 		
 		set_config_publisher = this->create_publisher<Control>("/set_config", 10);
 
+		status_text_subscription = this->create_subscription<Control>(
+			"/status_text",
+			10,
+			std::bind(&Datalink::status_text_callback, this, _1)
+		);
         } else {
                 fill_subscriber_list<Control>(
                         topics,
@@ -218,12 +223,6 @@ void Datalink::setup_default_control_topics() {
 			"/set_config",
 			10,
 			std::bind(&Datalink::set_config_callback, this, _1)
-		);
-
-		status_text_subscription = this->create_subscription<Control>(
-			"/status_text",
-			10,
-			std::bind(&Datalink::status_text_callback, this, _1)
 		);
         }
 }

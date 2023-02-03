@@ -806,28 +806,28 @@ void Datalink::publish_service_callback(
 void Datalink::array_received_callback(const mavlink_message_t& msg) {
         RCLCPP_DEBUG(this->get_logger(), "Got a LOGGING_DATA message");
 
-        mavlink_logging_data_t * inner = new mavlink_logging_data_t();
-        mavlink_msg_logging_data_decode(&msg, inner);
+        mavlink_logging_data_t inner;
+        mavlink_msg_logging_data_decode(&msg, &inner);
 
         RCLCPP_DEBUG(
                 this->get_logger(),
                 "The message is from %d/%d and addressed to %d/%d",
                 msg.sysid,
                 msg.compid,
-                inner->target_system,
-                inner->target_component
+                inner.target_system,
+                inner.target_component
         );
 
         if (
                         msg.sysid != targetsysid ||
                         msg.compid != targetcompid ||
-                        inner->target_system != sysid ||
-                        inner->target_component != compid
+                        inner.target_system != sysid ||
+                        inner.target_component != compid
         ) {
                 return;
         }
 
-        TelemMessage message = TelemMessage(inner->data);
+        TelemMessage message = TelemMessage(inner.data);
 
         while (message.has_next()) {
                 TelemHeader head = message.next_header();
@@ -1063,76 +1063,76 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 // if we ever switch to using the PX4-ROS2 bridge, this is all getting replaced.
 
 void Datalink::gps_raw_received_callback(const mavlink_message_t& msg) const {
-        mavlink_gps_raw_int_t *gps = new mavlink_gps_raw_int_t();
-        mavlink_msg_gps_raw_int_decode(&msg, gps);
+        mavlink_gps_raw_int_t gps;
+        mavlink_msg_gps_raw_int_decode(&msg, &gps);
 
         GPSPosition ros_message;
 
-        ros_message.alt = gps->alt;
-        ros_message.alt_ellipsoid = gps->alt_ellipsoid;
-        ros_message.cog = gps->cog;
-        ros_message.eph = gps->eph;
-        ros_message.epv = gps->epv;
-        ros_message.fix_type = gps->fix_type;
-        ros_message.h_acc = gps->h_acc;
-        ros_message.hdg_acc = gps->hdg_acc;
-        ros_message.lat = gps->lat;
-        ros_message.lon = gps->lon;
-        ros_message.satellites_visible = gps->satellites_visible;
-        ros_message.time_usec = gps->time_usec;
-        ros_message.v_acc = gps->v_acc;
-        ros_message.vel = gps->vel;
-        ros_message.vel_acc = gps->vel_acc;
-        ros_message.yaw = gps->yaw;
+        ros_message.alt = gps.alt;
+        ros_message.alt_ellipsoid = gps.alt_ellipsoid;
+        ros_message.cog = gps.cog;
+        ros_message.eph = gps.eph;
+        ros_message.epv = gps.epv;
+        ros_message.fix_type = gps.fix_type;
+        ros_message.h_acc = gps.h_acc;
+        ros_message.hdg_acc = gps.hdg_acc;
+        ros_message.lat = gps.lat;
+        ros_message.lon = gps.lon;
+        ros_message.satellites_visible = gps.satellites_visible;
+        ros_message.time_usec = gps.time_usec;
+        ros_message.v_acc = gps.v_acc;
+        ros_message.vel = gps.vel;
+        ros_message.vel_acc = gps.vel_acc;
+        ros_message.yaw = gps.yaw;
 
         gps_raw_publisher->publish(ros_message);
         gps_position_publisher->publish(ros_message);
 }
 
 void Datalink::global_position_received_callback(const mavlink_message_t& msg) const {
-        mavlink_global_position_int_t *gps = new mavlink_global_position_int_t();
-        mavlink_msg_global_position_int_decode(&msg, gps);
+        mavlink_global_position_int_t gps;
+        mavlink_msg_global_position_int_decode(&msg, &gps);
 
         GlobalPosition ros_message;
 
-        ros_message.time_boot_ms = gps->time_boot_ms;
-        ros_message.lat = gps->lat;
-        ros_message.lon = gps->lon;
-        ros_message.alt = gps->alt;
-        ros_message.relative_alt = gps->relative_alt;
-        ros_message.vx = gps->vx;
-        ros_message.vy = gps->vy;
-        ros_message.vz = gps->vz;
-        ros_message.hdg = gps->hdg;
+        ros_message.time_boot_ms = gps.time_boot_ms;
+        ros_message.lat = gps.lat;
+        ros_message.lon = gps.lon;
+        ros_message.alt = gps.alt;
+        ros_message.relative_alt = gps.relative_alt;
+        ros_message.vx = gps.vx;
+        ros_message.vy = gps.vy;
+        ros_message.vz = gps.vz;
+        ros_message.hdg = gps.hdg;
 
         global_position_publisher->publish(ros_message);
 }
 
 void Datalink::attitude_received_callback(const mavlink_message_t& msg) const {
-        mavlink_attitude_t *attitude = new mavlink_attitude_t();
-        mavlink_msg_attitude_decode(&msg, attitude);
+        mavlink_attitude_t attitude;
+        mavlink_msg_attitude_decode(&msg, &attitude);
 
         Attitude ros_message;
 
-        ros_message.time_boot_ms = attitude->time_boot_ms;
-        ros_message.roll = attitude->roll;
-        ros_message.pitch = attitude->pitch;
-        ros_message.yaw = attitude->yaw;
-        ros_message.rollspeed = attitude->rollspeed;
-        ros_message.pitchspeed = attitude->pitchspeed;
-        ros_message.yawspeed = attitude->yawspeed;
+        ros_message.time_boot_ms = attitude.time_boot_ms;
+        ros_message.roll = attitude.roll;
+        ros_message.pitch = attitude.pitch;
+        ros_message.yaw = attitude.yaw;
+        ros_message.rollspeed = attitude.rollspeed;
+        ros_message.pitchspeed = attitude.pitchspeed;
+        ros_message.yawspeed = attitude.yawspeed;
 
         attitude_publisher->publish(ros_message);
 }
 
 void Datalink::systime_received_callback(const mavlink_message_t& msg) const {
-        mavlink_system_time_t *systime = new mavlink_system_time_t();
-        mavlink_msg_system_time_decode(&msg, systime);
+        mavlink_system_time_t systime;
+        mavlink_msg_system_time_decode(&msg, &systime);
 
         SystemTime ros_message;
 
-        ros_message.time_boot_ms = systime->time_boot_ms;
-        ros_message.time_unix_us = systime->time_unix_usec;
+        ros_message.time_boot_ms = systime.time_boot_ms;
+        ros_message.time_unix_us = systime.time_unix_usec;
 
         systime_publisher->publish(ros_message);
 }

@@ -22,6 +22,7 @@
 #include "stardos_interfaces/msg/global_position.hpp"
 #include "stardos_interfaces/msg/gps_position.hpp"
 #include "stardos_interfaces/msg/attitude.hpp"
+#include "stardos_interfaces/msg/rc_channels.hpp"
 #include "stardos_interfaces/msg/system_time.hpp"
 #include "stardos_interfaces/msg/system_status.hpp"
 #include "stardos_interfaces/msg/star_command_downlink.hpp"
@@ -243,6 +244,7 @@ void Datalink::setup_autopilot_telemetry() {
                 global_position_publisher = this->create_publisher<GlobalPosition>("global_position", 10);
                 attitude_publisher = this->create_publisher<Attitude>("attitude", 10);
                 systime_publisher = this->create_publisher<SystemTime>("system_time", 10);
+                rc_channels_publisher = this->create_publisher<RCChannels>("rc_channels", 10);
         }
 }
 
@@ -415,7 +417,6 @@ void Datalink::check_systems() {
                                 autopilot_passthrough = std::make_shared<MavlinkPassthrough>(autopilot);
                         }
 
-
                         RCLCPP_INFO(this->get_logger(), "Bridging MAVLink messages");
 
                         autopilot_passthrough->subscribe_message_async(
@@ -433,6 +434,10 @@ void Datalink::check_systems() {
                         autopilot_passthrough->subscribe_message_async(
                                         MAVLINK_MSG_ID_SYSTEM_TIME,
                                         std::bind(&Datalink::systime_received_callback, this, _1));
+
+                        autopilot_passthrough->subscribe_message_async(
+                                        MAVLINK_MSG_ID_RC_CHANNELS,
+                                        std::bind(&Datalink::rc_channels_received_callback, this, _1));
                 }
 
                 if (target != nullptr &&
@@ -1135,6 +1140,48 @@ void Datalink::systime_received_callback(const mavlink_message_t& msg) const {
         ros_message.time_unix_us = systime->time_unix_usec;
 
         systime_publisher->publish(ros_message);
+}
+
+void Datalink::rc_channels_received_callback(const mavlink_message_t& msg) const {
+        mavlink_rc_channels_t rcc;
+        mavlink_msg_rc_channels_decode(&msg, &rcc);
+
+        RCChannels ros_message;
+
+        ros_message.time_boot_ms = rcc.time_boot_ms;
+        ros_message.chancount = rcc.chancount;
+	ros_message.rssi = rcc.rssi;
+	
+	// i thought i had abandoned this dark art years ago
+	// but you leave me no choice...
+
+#define MAYBE_PUSH_CHANNEL_VALUE(CHANNUM) \
+	if (ros_message.chancount >= CHANNUM) { \
+		ros_message.values.push_back(rcc.chan ## CHANNUM ## _raw); \
+	}
+
+	MAYBE_PUSH_CHANNEL_VALUE(1);
+	MAYBE_PUSH_CHANNEL_VALUE(2);
+	MAYBE_PUSH_CHANNEL_VALUE(3);
+	MAYBE_PUSH_CHANNEL_VALUE(4);
+	MAYBE_PUSH_CHANNEL_VALUE(5);
+	MAYBE_PUSH_CHANNEL_VALUE(6);
+	MAYBE_PUSH_CHANNEL_VALUE(7);
+	MAYBE_PUSH_CHANNEL_VALUE(8);
+	MAYBE_PUSH_CHANNEL_VALUE(9);
+	MAYBE_PUSH_CHANNEL_VALUE(10);
+	MAYBE_PUSH_CHANNEL_VALUE(11);
+	MAYBE_PUSH_CHANNEL_VALUE(12);
+	MAYBE_PUSH_CHANNEL_VALUE(13);
+	MAYBE_PUSH_CHANNEL_VALUE(14);
+	MAYBE_PUSH_CHANNEL_VALUE(15);
+	MAYBE_PUSH_CHANNEL_VALUE(16);
+	MAYBE_PUSH_CHANNEL_VALUE(17);
+	MAYBE_PUSH_CHANNEL_VALUE(18);
+
+#undef MAYBE_PUSH_CHANNEL_VALUE
+
+        rc_channels_publisher->publish(ros_message);
 }
 
 template<typename T>

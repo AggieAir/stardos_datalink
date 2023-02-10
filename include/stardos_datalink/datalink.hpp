@@ -22,6 +22,7 @@
 #include "stardos_interfaces/msg/global_position.hpp"
 #include "stardos_interfaces/msg/gps_position.hpp"
 #include "stardos_interfaces/msg/attitude.hpp"
+#include "stardos_interfaces/msg/rc_channels.hpp"
 #include "stardos_interfaces/msg/system_time.hpp"
 #include "stardos_interfaces/msg/system_status.hpp"
 #include "stardos_interfaces/msg/star_command_downlink.hpp"
@@ -136,6 +137,7 @@ private:
         rclcpp::Publisher<GlobalPosition>::SharedPtr global_position_publisher;
         rclcpp::Publisher<Attitude>::SharedPtr attitude_publisher;
         rclcpp::Publisher<SystemTime>::SharedPtr systime_publisher;
+        rclcpp::Publisher<RCChannels>::SharedPtr rc_channels_publisher;
 
         // Publishers for StarCommand topics (if necessary)
         rclcpp::Publisher<StarCommandDownlink>::SharedPtr starcommand_publisher;
@@ -222,6 +224,7 @@ private:
         void global_position_received_callback(const mavlink_message_t& msg) const;
         void attitude_received_callback(const mavlink_message_t& msg) const;
         void systime_received_callback(const mavlink_message_t& msg) const;
+        void rc_channels_received_callback(const mavlink_message_t& msg) const;
 
         // Convenience methods -- takes a list of topics and subscribes/creates publishers to all of them
         // Makes it a lot easier to handle "pub" and "sub" lists from the control listener

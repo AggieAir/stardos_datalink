@@ -117,8 +117,6 @@ namespace floattelem {
 
                 forward(head.msg_length);
 
-                std::cout << "Popped message, offset=" << (int) offset << "\n";
-
                 return ret;
         }
 

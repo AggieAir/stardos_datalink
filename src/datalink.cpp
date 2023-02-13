@@ -162,6 +162,28 @@ void Datalink::configure() {
                         true
                 )
         );
+
+	mavsdk::log::subscribe(
+		[this](
+			mavsdk::log::Level level,
+			const std::string& message,
+			const std::string& file,
+			int line
+		) {
+			std::ostringstream msgout;
+			msgout << "[MAVSDK] "  << message << "(" << file << ":" << line << ")";
+			if (level == mavsdk::log::Level::Debug) {
+				RCLCPP_INFO(this->get_logger(), "%s", msgout.str().c_str());
+			} else if (level == mavsdk::log::Level::Info) {
+				RCLCPP_INFO(this->get_logger(), "%s", msgout.str().c_str());
+			} else if (level == mavsdk::log::Level::Warn) {
+				RCLCPP_WARN(this->get_logger(), "%s", msgout.str().c_str());
+			} else if (level == mavsdk::log::Level::Err) {
+				RCLCPP_ERROR(this->get_logger(), "%s", msgout.str().c_str());
+			}
+			return true;
+		}
+	);
 }
 
 void Datalink::connect() {

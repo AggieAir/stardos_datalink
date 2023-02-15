@@ -789,7 +789,10 @@ void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
 }
 
 void Datalink::uploading_callback(mavsdk::Ftp::Result res, mavsdk::Ftp::ProgressData pd, std::promise<mavsdk::Ftp::Result> *promise) {
-	RCLCPP_INFO(this->get_logger(), "FTP result: %d, bytes: %d/%d", res, pd.bytes_transferred, pd.total_bytes);
+	std::ostringstream resultText;
+	resultText << res;
+
+	RCLCPP_INFO(this->get_logger(), "FTP result: %s, bytes: %d/%d", resultText.str().c_str(), pd.bytes_transferred, pd.total_bytes);
 
 	if (res != mavsdk::Ftp::Result::Next) {
 		promise->set_value(res);

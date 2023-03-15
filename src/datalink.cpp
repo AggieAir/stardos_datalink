@@ -522,16 +522,6 @@ void Datalink::set_config_callback(Control::SharedPtr ctrl) {
 	RCLCPP_INFO(this->get_logger(), "Wrote to the buffered_message file");
 
 	uploading_thread = std::make_unique<std::thread>([this, ctrl] {
-		{
-			struct stat fsstat;
-			int accessible = stat("/opt/stardos/tmp/ftp/buffered_message.json", &fsstat);
-			RCLCPP_INFO(this->get_logger(), accessible ? "can't access" : "returned 0");
-
-			std::ifstream fs("/opt/stardos/tmp/ftp/buffered_message.json");
-			RCLCPP_INFO(this->get_logger(), fs ? "no error" : "error");
-			fs.close();
-		}
-
 		RCLCPP_INFO(this->get_logger(), "Running on new thread");
 
 		std::promise<mavsdk::Ftp::Result> promise;

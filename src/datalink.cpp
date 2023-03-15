@@ -1,3 +1,5 @@
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <fstream>
 #include <functional>
 #include <filesystem>
@@ -420,6 +422,8 @@ void Datalink::check_systems() {
 
 			ftp = std::make_shared<mavsdk::Ftp>(*target);
 
+			ftp->set_target_compid(targetcompid);
+
 			std::filesystem::create_directories("/opt/stardos/tmp/ftp");
 			ftp->set_root_directory("/opt/stardos/tmp/ftp");
                 }
@@ -518,6 +522,16 @@ void Datalink::set_config_callback(Control::SharedPtr ctrl) {
 	RCLCPP_INFO(this->get_logger(), "Wrote to the buffered_message file");
 
 	uploading_thread = std::make_unique<std::thread>([this, ctrl] {
+		{
+			struct stat fsstat;
+			int accessible = stat("/opt/stardos/tmp/ftp/buffered_message.json", &fsstat);
+			RCLCPP_INFO(this->get_logger(), accessible ? "can't access" : "returned 0");
+
+			std::ifstream fs("/opt/stardos/tmp/ftp/buffered_message.json");
+			RCLCPP_INFO(this->get_logger(), fs ? "no error" : "error");
+			fs.close();
+		}
+
 		RCLCPP_INFO(this->get_logger(), "Running on new thread");
 
 		std::promise<mavsdk::Ftp::Result> promise;

@@ -1068,7 +1068,6 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 
 			if (!matches) {
 				RCLCPP_ERROR(this->get_logger(), "Buffered set_config message does not match");
-				std::this_thread::sleep_for(std::chrono::milliseconds(2500));
 				continue;
 			} 
 
@@ -1077,10 +1076,10 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 
 			set_config_publisher->publish(ctrl);
 
-			break;
-
 			delete[] received_digest;
 			delete[] generated_digest;
+
+			std::filesystem::remove("/opt/stardos/tmp/ftp/buffered_message.json");
                 } else {
                         RCLCPP_ERROR(
                                 this->get_logger(),

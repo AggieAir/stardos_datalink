@@ -62,6 +62,11 @@ private:
         std::string aircraft;
         std::string payload;
 
+	std::optional<std::string> central_config_index;
+
+	Json::Value central_config;
+	Json::Value central_config_system;
+
         // DEBUG_FLOAT_ARRAY Array ID
         uint16_t array_id;
 
@@ -166,7 +171,7 @@ private:
         // Setup autopilot telemetry
         void setup_autopilot_telemetry();
         // Setup starcommand downlink and uplink
-        void setup_starcommand(const std::string& downlink_topic, const std::string& uplink_topic);
+        void setup_starcommand();
         // Load the properties of each system and the status messages they publish
         void load_system_statuses();
         // Load the mountpoint enum

@@ -62,6 +62,26 @@ Datalink::Datalink(
 {
 	rhash_library_init();
 
+	if (config["central_config_location"].isString()) {
+		central_config_index.emplace(config["central_config_location"].asString());
+	}
+
+	{
+		std::ifstream cc_fs("/opt/stardos/settings.json");
+		cc_fs >> central_config;
+
+		if (central_config_index) {
+			central_config_system = central_config[*central_config_index];
+		} else if (central_config["ground"].isObject()) {
+			central_config_system = central_config["ground"];
+		} else if (central_config["copilot"].isObject()) {
+			central_config_system = central_config["copilot"];
+		} else {
+			RCLCPP_ERROR(this->get_logger(), "Cannot find central config location");
+			throw std::exception();
+		}
+	}
+
 	configure();
 	connect();
 
@@ -97,6 +117,7 @@ Datalink::Datalink(
 	get_system_timer = this->create_wall_timer(1000ms, std::bind(&Datalink::check_systems, this));
 
         setup_floattelem();
+	setup_starcommand();
 }
 
 void Datalink::detect_environment() {
@@ -164,32 +185,11 @@ void Datalink::configure() {
                         true
                 )
         );
-
-	mavsdk::log::subscribe(
-		[this](
-			mavsdk::log::Level level,
-			const std::string& message,
-			const std::string& file,
-			int line
-		) {
-			std::ostringstream msgout;
-			msgout << "[MAVSDK] "  << message << "(" << file << ":" << line << ")";
-			if (level == mavsdk::log::Level::Debug) {
-				RCLCPP_INFO(this->get_logger(), "%s", msgout.str().c_str());
-			} else if (level == mavsdk::log::Level::Info) {
-				RCLCPP_INFO(this->get_logger(), "%s", msgout.str().c_str());
-			} else if (level == mavsdk::log::Level::Warn) {
-				RCLCPP_WARN(this->get_logger(), "%s", msgout.str().c_str());
-			} else if (level == mavsdk::log::Level::Err) {
-				RCLCPP_ERROR(this->get_logger(), "%s", msgout.str().c_str());
-			}
-			return true;
-		}
-	);
 }
 
 void Datalink::connect() {
-        Json::Value urlval = config["connection_url"];
+        // Json::Value urlval = config["connection_url"];
+	Json::Value urlval = central_config_system["mavlink_url"];
         if (!urlval.isString()) {
                 RCLCPP_ERROR(this->get_logger(), "URL must be a string");
                 throw std::exception();
@@ -198,10 +198,10 @@ void Datalink::connect() {
 	RCLCPP_INFO(
 		this->get_logger(),
 		"Connecting to MAVLink with URL: '%s'",
-		config["connection_url"].asCString()
+		urlval.asCString()
 	);
 
-        dc.add_any_connection(config["connection_url"].asString());
+        dc.add_any_connection(urlval.asString());
 }
 
 void Datalink::setup_default_heartbeat_topics() {
@@ -272,13 +272,16 @@ void Datalink::setup_autopilot_telemetry() {
         }
 }
 
-void Datalink::setup_starcommand(const std::string& downlink_topic, const std::string& uplink_topic) {
-        starcommand_publisher = this->create_publisher<StarCommandDownlink>(downlink_topic, 10);
-        starcommand_subscription = this->create_subscription<StarCommandUplink>(
-                uplink_topic,
-                10,
-                std::bind(&Datalink::uplink_callback, this, _1)
-        );
+void Datalink::setup_starcommand() { //const std::string& downlink_topic, const std::string& uplink_topic) {
+	if (config["starcommand"].asBool()) {
+		starcommand_publisher = this->create_publisher<StarCommandDownlink>(
+			"/payload_telemetry_downlink", 10);
+		starcommand_subscription = this->create_subscription<StarCommandUplink>(
+			"/payload_telemetry_uplink",
+			10,
+			std::bind(&Datalink::uplink_callback, this, _1)
+		);
+	}
 }
 
 void Datalink::load_system_statuses() {
@@ -735,22 +738,6 @@ void Datalink::setup_floattelem() {
                         );
                 }
         ));
-
-        services.push_back(this->create_service<StarCommandTopics>(
-                "starcommand_topics",
-                [this] (
-                                StarCommandTopics::Request::SharedPtr req,
-                                StarCommandTopics::Response::SharedPtr resp
-                ) {
-                        RCLCPP_INFO(this->get_logger(), "Setting up StarCommand pub/sub");
-                        setup_starcommand(
-                                req->downlink,
-                                req->uplink
-                        );
-
-                        resp->complete = true;
-                }
-        ));
 }
 
 void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
@@ -866,7 +853,12 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
         while (message.has_next()) {
                 TelemHeader head = message.next_header();
                 if (head.msg_type == floattelem::MSG_ID_HEARTBEAT) {
-                        RCLCPP_DEBUG(this->get_logger(), "Heartbeat message!");
+                        RCLCPP_INFO(
+				this->get_logger(),
+				"Received heartbeat message (offset=%hhu)",
+				message.get_offset()
+			);
+
                         NodeHeartbeat ros_message = message.pop_heartbeat_message();
 
                         if (head.topic_id >= heartbeat_publishers.size()) {

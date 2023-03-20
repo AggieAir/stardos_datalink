@@ -2,9 +2,9 @@
         "config": {
                 "sysid": 190,
                 "compid": 190,
-                "connection_url": "tcp://127.0.0.1:5760",
                 "targetsysid": 1,
                 "targetcompid": 220,
+		"central_config_location": "ground",
                 "autopilot_telemetry": false,
                 "publish_system_status": true,
                 "publish_default_topics": true,

@@ -855,8 +855,11 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                 if (head.msg_type == floattelem::MSG_ID_HEARTBEAT) {
                         RCLCPP_INFO(
 				this->get_logger(),
-				"Received heartbeat message (offset=%hhu)",
-				message.get_offset()
+				"Received heartbeat message (offset=%hhu, id=%hhu, length=%hhu, topic=%hhu)",
+				message.get_offset(),
+				head.msg_type,
+				head.msg_length,
+				head.topic_id
 			);
 
                         NodeHeartbeat ros_message = message.pop_heartbeat_message();

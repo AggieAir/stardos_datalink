@@ -1,2 +1,4 @@
 compile_flags.txt
 .cache
+files/copilot_in.json
+files/ground_in.json

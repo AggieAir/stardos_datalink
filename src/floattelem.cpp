@@ -48,22 +48,23 @@ namespace floattelem {
                  *  64: 79   8- 9      4  requests
                  *  80: 95  10-11      5  failures
                  *  96:111  12-13      6  performance
-                 * 112:119     14   7     failures
+                 * 112:119     14   7     queue_length
                  * 120:  n  15- n    - n  data
                  */
 
-                if (!check_space(MSG_LENGTH_HEARTBEAT)) {
-                        return false;
-                }
-
                 int last_byte_index = -1;
-                for (int i = 0; i < msg->data.size(); i++) {
+                for (uint32_t i = 0; i < msg->data.size(); i++) {
                         if (msg->data[i] != 0) {
                                 last_byte_index = i;
                         }
                 }
 
                 int length = MSG_LENGTH_HEARTBEAT + last_byte_index + 1;
+
+                if (!check_space(length)) {
+                        return false;
+                }
+
                 this->push_header(MSG_ID_HEARTBEAT, length, topic_id);
 
                 uint8_t  *data8  = data_u8_mut();

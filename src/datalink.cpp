@@ -499,7 +499,11 @@ void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
         }
 
         if (ctrl->options.size() > floattelem::MAX_STRING_LENGTH) {
-                RCLCPP_ERROR(this->get_logger(), "Option string too long; will be truncated");
+                RCLCPP_ERROR(
+			this->get_logger(),
+			"Option string '%s' too long; will be truncated",
+			ctrl->options.c_str()
+		);
         }
 
         TelemMessage tmsg;

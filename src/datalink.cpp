@@ -1,3 +1,4 @@
+#include <jsoncpp/json/writer.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fstream>
@@ -60,6 +61,10 @@ Datalink::Datalink(
         config{config},
         buffered_message{TelemMessage()}
 {
+	Json::StreamWriterBuilder b;
+	b.settings_["indentation"] = "";
+	writer = std::unique_ptr<Json::StreamWriter>(b.newStreamWriter());
+
 	rhash_library_init();
 
 	if (config["central_config_location"].isString()) {
@@ -887,14 +892,16 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 
                         Json::Value v(Json::objectValue);
 
-                        v["state"]    = Json::Value(ros_message.state);
-                        v["requests"] = Json::Value(ros_message.requests);
-                        v["failures"] = Json::Value(ros_message.failures);
-                        v["errors"]   = Json::Value(ros_message.errors);
+                        v["state"]        = Json::Value(ros_message.state);
+                        v["requests"]     = Json::Value(ros_message.requests);
+                        v["failures"]     = Json::Value(ros_message.failures);
+                        v["errors"]       = Json::Value(ros_message.errors);
+                        v["performance"]  = Json::Value(ros_message.performance);
+                        v["queue_length"] = Json::Value(ros_message.queue_length);
                         copy_to_json_array(ros_message.data, v["data"]);
 
                         std::ostringstream json_out;
-                        json_out << v;
+			writer->write(v, &json_out);
 
                         down.type = "node";
                         down.payload = json_out.str();
@@ -927,7 +934,7 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                         v["options"] = Json::Value(options);
 
                         std::ostringstream json_out;
-                        json_out << Json::StreamWriterBuilder().newStreamWriter();
+			writer->write(v, &json_out);
 
                         down.type = "node";
                         down.payload = json_out.str();
@@ -1004,7 +1011,7 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                         v["cpu_count"] = out.cpu_count;
 
                         std::ostringstream ss;
-                        ss << v;
+			writer->write(v, &ss);
                         down.type = "system";
                         down.payload = ss.str();
                         down.origin = system_status_publishers[head.topic_id]->get_topic_name();

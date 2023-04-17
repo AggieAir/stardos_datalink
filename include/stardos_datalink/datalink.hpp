@@ -43,6 +43,7 @@ public:
         );
 
 private:
+	std::unique_ptr<Json::StreamWriter> writer;
         /* ************************ *
          * VARIABLE ZONE            *
          * There are a lot of these *

@@ -289,6 +289,39 @@ void Datalink::setup_starcommand() { //const std::string& downlink_topic, const 
 	}
 }
 
+void Datalink::setup_temperatures() {
+        std::filesystem::path temperature_path("/");
+        temperature_path = temperature_path / "copilot" / "temperature_probes";
+
+        if (config["listen_for_temperature"].asBool()) {
+                temperature_subscription = this->create_subscription<TemperatureProbes>(
+                        temperature_path.string(),
+                        10,
+                        std::bind(&Datalink::temperature_callback, this, _1)
+                );
+        } else {
+                temperature_publisher = this->create_publisher<TemperatureProbes>(temperature_path.string(), 10);
+        }
+
+	std::ifstream file(extra_config_directory + "/sensor.json");
+        Json::Value root;
+
+        file >> root;
+
+        for (auto value : root) {
+                uint8_t id = value["id"].asUInt();
+                std::string name = value["id"].asString();
+                std::string label = value["id"].asString();
+
+		TemperatureProbeDetails placeholder = { name, label, id };
+
+                auto details = std::make_shared<TemperatureProbeDetails>(placeholder);
+
+                this->probes_by_id[id] = details;
+                this->probes_by_name[name] = details;
+        }
+}
+
 void Datalink::load_system_statuses() {
         // std::ifstream file(extra_config_directory + "/systems.json");
         // Json::Value root;
@@ -479,6 +512,35 @@ void Datalink::check_systems() {
                         RCLCPP_INFO(this->get_logger(), "Systems found; ending search.");
                         get_system_timer->cancel();
                 }
+        }
+}
+
+void Datalink::handle_message_request(uint8_t message_id, uint8_t topic_id) {
+        if (message_id == floattelem::MSG_ID_SYSTEM_CAPACITY) {
+                RCLCPP_INFO(
+                        this->get_logger(),
+                        "Got system status request for system %d",
+                        topic_id
+                );
+
+                auto result = this->cached_systems.find(topic_id);
+                if (result == this->cached_systems.end()) {
+                        RCLCPP_ERROR(
+                                this->get_logger(),
+                                "System status request for id %d was for unknown system",
+                                topic_id
+                        );
+                } else {
+                        TelemMessage tmsg;
+                        tmsg.push_system_capacity_message(&result->second, topic_id);
+                        this->send_telemetry(tmsg);
+                }
+        } else {
+                RCLCPP_ERROR(
+                        this->get_logger(),
+                        "Can't respond to request for message %d",
+                        message_id
+                );
         }
 }
 
@@ -788,6 +850,21 @@ void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
         }
 }
 
+void Datalink::temperature_callback(TemperatureProbes::SharedPtr msg) {
+        floattelem::SlimTemperatures st;
+
+        auto name = msg->ids.begin();
+        auto reading = msg->readings.begin();
+        for (; name != msg->ids.end(); name++, reading++) {
+                st.ids.push_back(this->probes_by_name[*name]->id);
+                // we send it over in centi-degrees Celsius.
+                st.readings.push_back(round(*reading * 100));
+        }
+
+        floattelem::Message tmsg;
+        tmsg.push_temperatures_message(&st, 0);
+}
+
 void Datalink::uploading_callback(mavsdk::Ftp::Result res, mavsdk::Ftp::ProgressData pd, std::promise<mavsdk::Ftp::Result> *promise) {
 	std::ostringstream resultText;
 	resultText << res;
@@ -959,7 +1036,7 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                                 RCLCPP_ERROR(this->get_logger(), "System %d not cached!", head.topic_id);
 
 				TelemMessage tmsg;
-                                tmsg.push_system_capacity_request_message(head.topic_id);
+                                tmsg.push_message_request_message(floattelem::MSG_ID_SYSTEM_CAPACITY, head.topic_id);
 				this->send_telemetry(tmsg);
 
                                 RCLCPP_DEBUG(this->get_logger(), "Requested system capacity message.");
@@ -1017,27 +1094,11 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                         down.origin = system_status_publishers[head.topic_id]->get_topic_name();
 
                         starcommand_publisher->publish(down);
-                } else if (head.msg_type == floattelem::MSG_ID_SYSTEM_CAPACITY_REQUEST) {
-                        uint8_t id = message.pop_system_capacity_request_message();
+                } else if (head.msg_type == floattelem::MSG_ID_MESSAGE_REQUEST) {
+                        uint8_t message_id, argument;
 
-                        RCLCPP_INFO(
-                                this->get_logger(),
-                                "Got system status request for system %d",
-                                id
-                        );
+                        std::tie(message_id, argument) = message.pop_message_request_message();
 
-                        auto result = this->cached_systems.find(id);
-                        if (result == this->cached_systems.end()) {
-                                RCLCPP_ERROR(
-                                        this->get_logger(),
-                                        "System status request for id %d was for unknown system",
-                                        id
-                                );
-                        } else {
-                                TelemMessage tmsg;
-                                tmsg.push_system_capacity_message(&result->second, id);
-                                this->send_telemetry(tmsg);
-                        }
                 } else if (head.msg_type == floattelem::MSG_ID_SET_CONFIG) {
 			uint8_t *received_digest = new uint8_t[16];
 			uint8_t *generated_digest = new uint8_t[16];
@@ -1086,6 +1147,19 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 			set_config_publisher->publish(ctrl);
 
 			std::filesystem::remove("/opt/stardos/tmp/ftp/buffered_message.json");
+                } else if (head.msg_type == floattelem::MSG_ID_TEMPERATURES) {
+                        TemperatureProbes tp;
+
+                        floattelem::SlimTemperatures st = message.pop_temperatures_message();
+
+			auto id = st.ids.begin();
+			auto reading = st.readings.begin();
+                        for (; id != st.ids.end(); id++, reading++) {
+                                tp.ids.push_back(this->probes_by_id[*id]->label);
+                                tp.readings.push_back((float) *reading / 100);
+                        }
+
+                        this->temperature_publisher->publish(tp);
                 } else {
                         RCLCPP_ERROR(
                                 this->get_logger(),

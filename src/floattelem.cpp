@@ -337,32 +337,36 @@ namespace floattelem {
                 return ret;
         }
 
-        bool Message::push_system_capacity_request_message(uint8_t topic_id) {
+        bool Message::push_message_request_message(uint8_t message_id, uint8_t topic_id) {
                 /*  bits  bytes
-                 *  0:23   0- 2  header
+                 *   0:23  0- 2  header
+                 *  24:31     3  argument
                  */
 
-                this->push_header(MSG_ID_SYSTEM_CAPACITY_REQUEST, MSG_SYSTEM_CAPACITY_REQUEST_LENGTH, topic_id);
+                this->push_header(MSG_ID_MESSAGE_REQUEST, MSG_MESSAGE_REQUEST_LENGTH, topic_id);
+                this->data_u8_mut()[3] = message_id;
 
-                finalize(MSG_SYSTEM_CAPACITY_REQUEST_LENGTH);
+                finalize(MSG_MESSAGE_REQUEST_LENGTH);
 
                 return true;
         }
 
-        uint8_t Message::pop_system_capacity_request_message() {
+        std::tuple<uint8_t, uint8_t> Message::pop_message_request_message() {
                 Header head = next_header();
 
-                if (head.msg_type != MSG_ID_SYSTEM_CAPACITY_REQUEST) {
-                        throw  wrong_id_error(head.msg_type, MSG_ID_SYSTEM_CAPACITY_REQUEST);
+                if (head.msg_type != MSG_ID_MESSAGE_REQUEST) {
+                        throw  wrong_id_error(head.msg_type, MSG_ID_MESSAGE_REQUEST);
                 }
                 
-                if (head.msg_length != MSG_SYSTEM_CAPACITY_REQUEST_LENGTH) {
-                        throw wrong_length_error(head.msg_length, MSG_SYSTEM_CAPACITY_REQUEST_LENGTH);
+                if (head.msg_length != MSG_MESSAGE_REQUEST_LENGTH) {
+                        throw wrong_length_error(head.msg_length, MSG_MESSAGE_REQUEST_LENGTH);
                 }
+
+                uint8_t message_id = this->data_u8_mut()[3];
 
                 forward(head.msg_length);
 
-                return head.topic_id;
+                return std::make_tuple(message_id, head.topic_id);
         }
 
         bool Message::push_set_config_message(const uint8_t *digest) {
@@ -392,6 +396,64 @@ namespace floattelem {
 		memcpy(buffer, data_u8() + 4, 16);
 
                 forward(head.msg_length);
+        }
+
+        bool Message::push_temperatures_message(const SlimTemperatures *msg, uint8_t topic_id) {
+                /*   bits  bytes
+                 *   0:23  0- 2  header
+                 *  32: a  4- a  temperature readings
+                 *   a: b  a- b  sensor ids
+                 */
+
+                size_t length = MSG_TEMPERATURES_STATIC_LENGTH + 3 * msg->ids.size();
+
+                this->push_header(MSG_ID_TEMPERATURES, length, topic_id);
+
+                auto data16 = (int16_t*) this->data_u16_mut();
+                auto data8 = this->data_u8_mut();
+
+                for (size_t i = 0; i < msg->readings.size(); i++) {
+                        data16[2 + i] = msg->readings[i];
+                }
+
+		size_t id_start = 4 + 2 * msg->readings.size();
+
+                for (size_t i = 0; i < msg->ids.size(); i++) {
+                        data8[id_start + i] = msg->ids[i];
+                }
+
+                finalize(length);
+
+                return true;
+        }
+
+        SlimTemperatures Message::pop_temperatures_message() {
+                Header head = next_header();
+
+                if (head.msg_type != MSG_ID_TEMPERATURES) {
+                        throw wrong_id_error(head.msg_type, MSG_ID_TEMPERATURES);
+                }
+                
+                size_t num_entries = (head.msg_length - MSG_TEMPERATURES_STATIC_LENGTH) / 3;
+
+                SlimTemperatures st;
+
+                auto data16 = (int16_t*) this->data_u16_mut();
+                auto data8 = this->data_u8_mut();
+
+                for (size_t i = 0; i < num_entries; i++) {
+                        st.readings.push_back(data16[2 + i]);
+                }
+
+		size_t id_start = 4 + 2 * num_entries;
+
+                for (size_t i = 0; i < num_entries; i++) {
+                        data8[id_start + i] = data[i];
+                }
+
+                forward(head.msg_length);
+
+                return st;
         }
 
         const uint8_t *Message::get_data() const {

@@ -10,9 +10,11 @@
 
 #include "stardos_interfaces/msg/node_heartbeat.hpp"
 #include "stardos_interfaces/msg/system_status.hpp"
+#include "stardos_interfaces/msg/temperature_probes.hpp"
 
 using stardos_interfaces::msg::NodeHeartbeat;
 using stardos_interfaces::msg::SystemStatus;
+using stardos_interfaces::msg::TemperatureProbes;
 
 namespace floattelem {
         typedef struct {
@@ -36,11 +38,14 @@ namespace floattelem {
         constexpr uint8_t MSG_ID_SYSTEM_CAPACITY = 0x4;
         constexpr uint8_t MSG_SYSTEM_CAPACITY_STATIC_LENGTH = 12;
 
-        constexpr uint8_t MSG_ID_SYSTEM_CAPACITY_REQUEST = 0x5;
-        constexpr uint8_t MSG_SYSTEM_CAPACITY_REQUEST_LENGTH = 3;
+        constexpr uint8_t MSG_ID_MESSAGE_REQUEST = 0x5;
+        constexpr uint8_t MSG_MESSAGE_REQUEST_LENGTH = 4;
 
         constexpr uint8_t MSG_ID_SET_CONFIG = 0x6;
         constexpr uint8_t MSG_SET_CONFIG_LENGTH = 20;
+
+        constexpr uint8_t MSG_ID_TEMPERATURES = 0x7;
+        constexpr uint8_t MSG_TEMPERATURES_STATIC_LENGTH = 4;
 
         typedef struct {
                 std::vector<uint8_t> cpu_usage;
@@ -50,6 +55,11 @@ namespace floattelem {
                 std::vector<uint8_t> mounts;
                 uint32_t uptime;
         } SlimSystemStatus;
+
+        typedef struct {
+                std::vector<uint8_t> ids;
+                std::vector<uint16_t> readings;
+        } SlimTemperatures;
 
         typedef struct __SystemCapacity {
                 uint32_t max_memory_mb;
@@ -110,12 +120,16 @@ namespace floattelem {
                 SystemCapacity pop_system_capacity_message();
 
                 // request_system_capacity
-                bool push_system_capacity_request_message(uint8_t topic_id);
-                uint8_t pop_system_capacity_request_message();
+                bool push_message_request_message(uint8_t message_id, uint8_t argument);
+                std::tuple<uint8_t, uint8_t> pop_message_request_message();
 
                 // set_config
                 bool push_set_config_message(const uint8_t *digest);
                 void pop_set_config_message(uint8_t *buffer);
+
+                // temperatures
+                bool push_temperatures_message(const SlimTemperatures *msg, uint8_t topic_id);
+                SlimTemperatures pop_temperatures_message();
 
                 // Get the floats themselves
                 const uint8_t * get_data() const;
@@ -136,19 +150,23 @@ namespace floattelem {
                 inline uint8_t * data_u8_mut();
                 // Get the data as a sequence of 116 unsigned 16-bit integers
                 inline uint16_t * data_u16_mut();
-                // Get the data as a sequence of 116 unsigned 16-bit integers
+                // Get the data as a sequence of 58 unsigned 32-bit integers
                 inline uint32_t * data_u32_mut();
                 // Get the data as a sequence of 232 chars
                 inline char * data_char_mut();
+                // Get the data as a sequence of 58 floats
+                inline float * data_float_mut();
 
                 // Get the data as a sequence of 232 unsigned 8-bit integers
                 inline const uint8_t * data_u8() const;
                 // Get the data as a sequence of 116 unsigned 16-bit integers
                 inline const uint16_t * data_u16() const;
-                // Get the data as a sequence of 116 unsigned 16-bit integers
+                // Get the data as a sequence of 58 unsigned 32-bit integers
                 inline const uint32_t * data_u32() const;
                 // Get the data as a sequence of 232 chars
                 inline const char * data_char() const;
+                // Get the data as a sequence of 58 floats
+                inline const float * data_float() const;
 
                 // The number of floats reqired to hold a number of bytes equal to `bytes`
                 inline size_t offset_from_length(size_t bytes) const;

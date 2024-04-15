@@ -28,12 +28,19 @@
 #include "stardos_interfaces/msg/system_status.hpp"
 #include "stardos_interfaces/msg/star_command_downlink.hpp"
 #include "stardos_interfaces/msg/star_command_uplink.hpp"
+#include "stardos_interfaces/msg/temperature_probes.hpp"
 #include "stardos_interfaces/srv/topic_list.hpp"
 
 #include "floattelem.hpp"
 
 using namespace stardos_interfaces::msg;
 using namespace stardos_interfaces::srv;
+
+typedef struct {
+        std::string name;
+        std::string label;
+        uint8_t id;
+} TemperatureProbeDetails;
 
 class Datalink: public rclcpp::Node {
 public:
@@ -124,6 +131,11 @@ private:
         //   (this is a map because we may skip some system id at some point)
         std::map<uint8_t, rclcpp::Publisher<SystemStatus>::SharedPtr> system_status_publishers;
 
+	// list of probes by their name given by the driver
+        std::map<std::string, std::shared_ptr<TemperatureProbeDetails>> probes_by_name;
+        // list of probes by their 8-bit ids used for data transfer
+        std::map<uint8_t, std::shared_ptr<TemperatureProbeDetails>> probes_by_id;
+
         std::vector<rclcpp::ServiceBase::SharedPtr> services;
 
         // map topics to topic ids
@@ -150,6 +162,9 @@ private:
         rclcpp::Publisher<StarCommandDownlink>::SharedPtr starcommand_publisher;
         rclcpp::Subscription<StarCommandUplink>::SharedPtr starcommand_subscription;
 
+        rclcpp::Publisher<TemperatureProbes>::SharedPtr temperature_publisher;
+        rclcpp::Subscription<TemperatureProbes>::SharedPtr temperature_subscription;
+
         floattelem::Message buffered_message;
         
 
@@ -173,6 +188,8 @@ private:
         void setup_autopilot_telemetry();
         // Setup starcommand downlink and uplink
         void setup_starcommand();
+        // Setup temperature sensors
+        void setup_temperatures();
         // Load the properties of each system and the status messages they publish
         void load_system_statuses();
         // Load the mountpoint enum
@@ -183,6 +200,8 @@ private:
         mavsdk::MavlinkPassthrough::Result send_telemetry(const floattelem::Message &msg);
         // Check to see if there is another system; connect if so
         void check_systems();
+        // Handle a message request message
+        void handle_message_request(uint8_t message_id, uint8_t argument);
 
         /* ********************** *
          * ENTERING CALLBACK LAND *
@@ -204,6 +223,8 @@ private:
         void control_callback(Control::SharedPtr msg);
         // Runs every time we get an uplink message
         void uplink_callback(StarCommandUplink::SharedPtr msg);
+        // Runs every time we get a temperature message
+        void temperature_callback(TemperatureProbes::SharedPtr msg);
 
 	void uploading_callback(mavsdk::Ftp::Result, mavsdk::Ftp::ProgressData, std::promise<mavsdk::Ftp::Result>*);
 

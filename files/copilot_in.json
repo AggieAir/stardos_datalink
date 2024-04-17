@@ -8,6 +8,7 @@
                 "autopilot_telemetry": true,
                 "publish_system_status": false,
                 "publish_default_topics": false,
+                "listen_for_temperature": true,
                 "detect_environment": true,
                 "extra_config_directory": "/opt/stardos/workspace/src/stardos_datalink/files",
                 "starcommand": false

@@ -123,6 +123,7 @@ Datalink::Datalink(
 
         setup_floattelem();
 	setup_starcommand();
+	setup_temperatures();
 }
 
 void Datalink::detect_environment() {

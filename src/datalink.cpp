@@ -304,7 +304,7 @@ void Datalink::setup_temperatures() {
                 temperature_publisher = this->create_publisher<TemperatureProbes>(temperature_path.string(), 10);
         }
 
-	std::ifstream file(extra_config_directory + "/sensor.json");
+	std::ifstream file(extra_config_directory + "/sensors.json");
         Json::Value root;
 
         file >> root;

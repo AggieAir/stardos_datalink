@@ -292,15 +292,17 @@ void Datalink::setup_starcommand() { //const std::string& downlink_topic, const 
 
 void Datalink::setup_temperatures() {
         std::filesystem::path temperature_path("/");
-        temperature_path = temperature_path / "copilot" / "temperature_probes";
+        temperature_path = temperature_path / aircraft / "temperature_probes";
 
         if (config["listen_for_temperature"].asBool()) {
+		RCLCPP_INFO(this->get_logger(), "Creating Temperature Subscribers");
                 temperature_subscription = this->create_subscription<TemperatureProbes>(
                         temperature_path.string(),
                         10,
                         std::bind(&Datalink::temperature_callback, this, _1)
                 );
         } else {
+		RCLCPP_INFO(this->get_logger(), "Creating Temperature Publishers");
                 temperature_publisher = this->create_publisher<TemperatureProbes>(temperature_path.string(), 10);
         }
 
@@ -309,10 +311,12 @@ void Datalink::setup_temperatures() {
 
         file >> root;
 
+	RCLCPP_INFO(this->get_logger(), "Found %d sensors", root.size());
+
         for (auto value : root) {
                 uint8_t id = value["id"].asUInt();
-                std::string name = value["id"].asString();
-                std::string label = value["id"].asString();
+                std::string name = value["name"].asString();
+                std::string label = value["label"].asString();
 
 		TemperatureProbeDetails placeholder = { name, label, id };
 
@@ -854,16 +858,27 @@ void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
 void Datalink::temperature_callback(TemperatureProbes::SharedPtr msg) {
         floattelem::SlimTemperatures st;
 
+	RCLCPP_INFO(this->get_logger(), "Got readings for %ld probes", msg->readings.size());
+
         auto name = msg->ids.begin();
         auto reading = msg->readings.begin();
         for (; name != msg->ids.end(); name++, reading++) {
-                st.ids.push_back(this->probes_by_name[*name]->id);
+		if (this->probes_by_name.find(*name) != this->probes_by_name.end()) {
+			st.ids.push_back(this->probes_by_name[*name]->id);
+		} else {
+			RCLCPP_WARN(this->get_logger(), "Unknown probe '%s' ", name->c_str());
+			st.ids.push_back(255);
+		}
+
                 // we send it over in centi-degrees Celsius.
                 st.readings.push_back(round(*reading * 100));
         }
 
         floattelem::Message tmsg;
         tmsg.push_temperatures_message(&st, 0);
+
+	RCLCPP_INFO(this->get_logger(), "Sending readings over FloatTelem");
+	this->send_telemetry(tmsg);
 }
 
 void Datalink::uploading_callback(mavsdk::Ftp::Result res, mavsdk::Ftp::ProgressData pd, std::promise<mavsdk::Ftp::Result> *promise) {

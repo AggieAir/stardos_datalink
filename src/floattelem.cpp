@@ -438,8 +438,8 @@ namespace floattelem {
 
                 SlimTemperatures st;
 
-                auto data16 = (int16_t*) this->data_u16_mut();
-                auto data8 = this->data_u8_mut();
+                auto data16 = (int16_t*) this->data_u16();
+                auto data8 = this->data_u8();
 
                 for (size_t i = 0; i < num_entries; i++) {
                         st.readings.push_back(data16[2 + i]);
@@ -448,7 +448,7 @@ namespace floattelem {
 		size_t id_start = 4 + 2 * num_entries;
 
                 for (size_t i = 0; i < num_entries; i++) {
-                        data8[id_start + i] = data[i];
+                        st.ids.push_back(data8[id_start + i]);
                 }
 
                 forward(head.msg_length);

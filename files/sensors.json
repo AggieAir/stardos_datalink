@@ -2,11 +2,21 @@
     {
         "name": "3ce1d4431f91",
         "id": 0,
-        "label": "sensor 1"
+        "label": "Battery 1"
     },
     {
         "name": "3ce1d44343fc",
         "id": 1,
-        "label": "sensor 2"
+        "label": "Chamber"
+    },
+    {
+        "name": "3ce1d4435a88",
+        "id": 2,
+        "label": "Battery 2"
+    },
+    {
+        "name": "3ce1d458377d",
+        "id": 1,
+        "label": "Ambient"
     }
 ]

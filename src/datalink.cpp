@@ -1171,11 +1171,33 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 			auto id = st.ids.begin();
 			auto reading = st.readings.begin();
                         for (; id != st.ids.end(); id++, reading++) {
-                                tp.ids.push_back(this->probes_by_id[*id]->label);
+				if (this->probes_by_id.find(*id) != this->probes_by_id.end()) {
+					tp.ids.push_back(this->probes_by_id[*id]->name);
+				} else {
+					RCLCPP_WARN(this->get_logger(), "Unknown probe with id=%hhu ", *id);
+					tp.ids.push_back("Unknown Sensor");
+				}
                                 tp.readings.push_back((float) *reading / 100);
                         }
 
                         this->temperature_publisher->publish(tp);
+
+                        if (!this->starcommand_publisher) continue;
+
+                        StarCommandDownlink down;
+
+                        Json::Value v(Json::objectValue);
+
+                        copy_to_json_array(tp.ids, v["ids"]);
+                        copy_to_json_array(tp.readings, v["readings"]);
+
+                        std::ostringstream ss;
+			writer->write(v, &ss);
+                        down.type = "temperature";
+                        down.payload = ss.str();
+                        down.origin = aircraft + "/temperatures";
+
+                        starcommand_publisher->publish(down);
                 } else {
                         RCLCPP_ERROR(
                                 this->get_logger(),

@@ -1168,11 +1168,13 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 
                         floattelem::SlimTemperatures st = message.pop_temperatures_message();
 
+                        RCLCPP_INFO(this->get_logger(), "Received %lu temperature readings", st.ids.size());
+
 			auto id = st.ids.begin();
 			auto reading = st.readings.begin();
                         for (; id != st.ids.end(); id++, reading++) {
 				if (this->probes_by_id.find(*id) != this->probes_by_id.end()) {
-					tp.ids.push_back(this->probes_by_id[*id]->name);
+					tp.ids.push_back(this->probes_by_id[*id]->label);
 				} else {
 					RCLCPP_WARN(this->get_logger(), "Unknown probe with id=%hhu ", *id);
 					tp.ids.push_back("Unknown Sensor");
@@ -1195,7 +1197,7 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 			writer->write(v, &ss);
                         down.type = "temperature";
                         down.payload = ss.str();
-                        down.origin = aircraft + "/temperatures";
+                        down.origin = "/" + aircraft + "/temperatures";
 
                         starcommand_publisher->publish(down);
                 } else {

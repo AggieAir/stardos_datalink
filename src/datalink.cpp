@@ -1115,6 +1115,29 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 
                         std::tie(message_id, argument) = message.pop_message_request_message();
 
+                        if (message_id != floattelem::MSG_ID_SYSTEM_CAPACITY) {
+                                RCLCPP_INFO(this->get_logger(), "No handler for message request for id %d (argument=%d)", message_id, argument);
+                                continue;
+                        }
+
+                        RCLCPP_INFO(
+                                this->get_logger(),
+                                "Got system capacity request for system %d",
+                                argument
+                        );
+
+                        auto result = this->cached_systems.find(argument);
+                        if (result == this->cached_systems.end()) {
+                                RCLCPP_ERROR(
+                                        this->get_logger(),
+                                        "System status request for id %d was for unknown system",
+                                        argument
+                                );
+                        } else {
+                                TelemMessage tmsg;
+                                tmsg.push_system_capacity_message(&result->second, argument);
+                                this->send_telemetry(tmsg);
+                        }
                 } else if (head.msg_type == floattelem::MSG_ID_SET_CONFIG) {
 			uint8_t *received_digest = new uint8_t[16];
 			uint8_t *generated_digest = new uint8_t[16];

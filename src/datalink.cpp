@@ -3,7 +3,6 @@
 #include <sys/stat.h>
 #include <fstream>
 #include <functional>
-#include <filesystem>
 #include <iostream>
 #include <chrono>
 #include <string.h>
@@ -211,10 +210,10 @@ void Datalink::connect() {
 }
 
 void Datalink::setup_default_heartbeat_topics() {
-        std::filesystem::path copilot_path("/"), payload_path("/");
-        copilot_path = copilot_path / aircraft / "copilot" / "heartbeat";
-        payload_path = payload_path / aircraft / payload / "heartbeat";
-        std::vector<std::string> topics{copilot_path.string(), payload_path.string()};
+        std::string copilot_path("/"), payload_path("/");
+        copilot_path = copilot_path + '/' + aircraft + '/' + "copilot" + '/' + "heartbeat";
+        payload_path = payload_path + '/' + aircraft + '/' + payload + '/' + "heartbeat";
+        std::vector<std::string> topics{copilot_path, payload_path};
 
         if (config["publish_default_topics"].asBool()) {
                 fill_publisher_list<NodeHeartbeat>(
@@ -291,19 +290,19 @@ void Datalink::setup_starcommand() { //const std::string& downlink_topic, const 
 }
 
 void Datalink::setup_temperatures() {
-        std::filesystem::path temperature_path("/");
-        temperature_path = temperature_path / aircraft / "temperature_probes";
+        std::string temperature_path("/");
+        temperature_path = temperature_path + '/' + aircraft + '/' + "temperature_probes";
 
         if (config["listen_for_temperature"].asBool()) {
 		RCLCPP_INFO(this->get_logger(), "Creating Temperature Subscribers");
                 temperature_subscription = this->create_subscription<TemperatureProbes>(
-                        temperature_path.string(),
+                        temperature_path,
                         10,
                         std::bind(&Datalink::temperature_callback, this, _1)
                 );
         } else {
 		RCLCPP_INFO(this->get_logger(), "Creating Temperature Publishers");
-                temperature_publisher = this->create_publisher<TemperatureProbes>(temperature_path.string(), 10);
+                temperature_publisher = this->create_publisher<TemperatureProbes>(temperature_path, 10);
         }
 
 	std::ifstream file(extra_config_directory + "/sensors.json");
@@ -351,8 +350,8 @@ void Datalink::load_system_statuses() {
         //         }
         // }
         
-        std::filesystem::path payload_path = std::filesystem::path("/") / aircraft / payload / "status";
-        std::filesystem::path copilot_path = std::filesystem::path("/") / aircraft / "copilot" / "status";
+        std::string payload_path = std::string("/") + '/' + aircraft + '/' + payload + '/' + "status";
+        std::string copilot_path = std::string("/") + '/' + aircraft + '/' + "copilot" + '/' + "status";
 
         RCLCPP_INFO(
                 this->get_logger(),
@@ -470,7 +469,9 @@ void Datalink::check_systems() {
 
 			ftp->set_target_compid(targetcompid);
 
-			std::filesystem::create_directories("/opt/stardos/tmp/ftp");
+			if (-1 == mkdir("/opt/stardos/tmp/ftp", 0644) && errno != EEXIST) {
+				RCLCPP_ERROR(this->get_logger(), "error creating ftp directory: %s", strerror(errno));
+			}
 			ftp->set_root_directory("/opt/stardos/tmp/ftp");
                 }
 
@@ -1185,7 +1186,9 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 
 			set_config_publisher->publish(ctrl);
 
-			std::filesystem::remove("/opt/stardos/tmp/ftp/buffered_message.json");
+			if (-1 == unlink("/opt/stardos/tmp/ftp/buffered_message.json")) {
+				RCLCPP_ERROR(this->get_logger(), "Error deleting buffered message: %s", strerror(errno));
+			}
                 } else if (head.msg_type == floattelem::MSG_ID_TEMPERATURES) {
                         TemperatureProbes tp;
 

@@ -18,6 +18,7 @@ find_package(rclcpp REQUIRED)
 find_package(stardos_interfaces REQUIRED)
 find_package(MAVSDK REQUIRED)
 find_package(jsoncpp REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
 # add_executable(datalink_ground src/ground.cpp)
 # ament_target_dependencies(datalink_ground rclcpp stardos_interfaces MAVSDK)
@@ -29,7 +30,10 @@ add_executable(datalink_configured src/executables/configured.cpp)
 ament_target_dependencies(datalink_configured rclcpp stardos_interfaces MAVSDK)
 
 add_library(floattelem src/floattelem.cpp)
-ament_target_dependencies(floattelem stardos_interfaces)
+ament_target_dependencies(floattelem
+	stardos_interfaces
+	rosidl_default_generators
+)
 
 add_library(datalink src/datalink.cpp)
 ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK)

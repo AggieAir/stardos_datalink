@@ -1186,7 +1186,7 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
 
 			set_config_publisher->publish(ctrl);
 
-			if (-1 == unlink("/opt/stardos/tmp/ftp/buffered_message.json")) {
+			if (-1 == remove("/opt/stardos/tmp/ftp/buffered_message.json")) {
 				RCLCPP_ERROR(this->get_logger(), "Error deleting buffered message: %s", strerror(errno));
 			}
                 } else if (head.msg_type == floattelem::MSG_ID_TEMPERATURES) {

@@ -58,6 +58,7 @@ Datalink::Datalink(
         const Json::Value config
 ) : rclcpp::Node(name),
         config{config},
+        dc{mavsdk::Mavsdk{mavsdk::Mavsdk::Configuration{ComponentType::Custom}}},
         buffered_message{TelemMessage()}
 {
 	Json::StreamWriterBuilder b;

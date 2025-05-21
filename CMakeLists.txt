@@ -8,6 +8,8 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic -std=c++17)
 endif()
@@ -29,35 +31,27 @@ add_executable(datalink_configured src/executables/configured.cpp)
 ament_target_dependencies(datalink_configured rclcpp stardos_interfaces MAVSDK)
 
 add_library(floattelem src/floattelem.cpp)
-ament_target_dependencies(floattelem stardos_interfaces)
+ament_target_dependencies(floattelem stardos_interfaces MAVSDK)
 
 add_library(datalink src/datalink.cpp)
 ament_target_dependencies(datalink rclcpp stardos_interfaces MAVSDK)
 
 include_directories(include/stardos_datalink)
 
-# target_link_libraries(datalink_ground
-# 	datalink
-#         floattelem
-# 	jsoncpp_lib
-# 	MAVSDK::mavsdk)
-# 
-# target_link_libraries(datalink_copilot
-# 	datalink
-#         floattelem
-# 	jsoncpp_lib
-# 	MAVSDK::mavsdk)
+target_link_libraries(floattelem
+	MAVSDK::mavsdk)
+
+target_link_libraries(datalink
+	MAVSDK::mavsdk)
 
 target_link_libraries(datalink_configured
 	datalink
-        floattelem
+	floattelem
 	jsoncpp_lib
 	rhash
 	MAVSDK::mavsdk)
 
 install(TARGETS
-        # datalink_ground
-	# datalink_copilot
         datalink_configured
 	DESTINATION lib/${PROJECT_NAME})
 

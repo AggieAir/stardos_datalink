@@ -7,7 +7,7 @@
 #include <istream>
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/log_callback.h>
-#include <mavsdk/plugins/mavlink_passthrough/mavlink/v2.0/mavlink_types.h>
+#include <mavsdk/mavlink/common/common.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 #include <mavsdk/plugins/ftp/ftp.h>
 

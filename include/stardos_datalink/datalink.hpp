@@ -4,6 +4,9 @@
 #include <functional>
 #include <unordered_set>
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+
 #include <istream>
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/log_callback.h>
@@ -166,8 +169,11 @@ private:
         rclcpp::Subscription<TemperatureProbes>::SharedPtr temperature_subscription;
 
         floattelem::Message buffered_message;
-        
 
+        int measurement_protocol_socket;
+        struct sockaddr_in measurement_protocol_target;
+
+       
         /* **************************** *
          * FUNCTION ZONE                *
          * Non-callback functions first *
@@ -190,6 +196,8 @@ private:
         void setup_starcommand();
         // Setup temperature sensors
         void setup_temperatures();
+        // Setup measurement protocol socket
+        void setup_measurement_protocol();
         // Load the properties of each system and the status messages they publish
         void load_system_statuses();
         // Load the mountpoint enum
@@ -253,6 +261,7 @@ private:
         void attitude_received_callback(const mavlink_message_t& msg) const;
         void systime_received_callback(const mavlink_message_t& msg) const;
         void rc_channels_received_callback(const mavlink_message_t& msg) const;
+        void extended_sys_state_received_callback(const mavlink_message_t& msg);
 
         // Convenience methods -- takes a list of topics and subscribes/creates publishers to all of them
         // Makes it a lot easier to handle "pub" and "sub" lists from the control listener

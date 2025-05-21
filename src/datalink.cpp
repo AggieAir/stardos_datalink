@@ -124,6 +124,8 @@ Datalink::Datalink(
         setup_floattelem();
 	setup_starcommand();
 	setup_temperatures();
+
+        setup_measurement_protocol();
 }
 
 void Datalink::detect_environment() {
@@ -881,6 +883,27 @@ void Datalink::temperature_callback(TemperatureProbes::SharedPtr msg) {
 	this->send_telemetry(tmsg);
 }
 
+void Datalink::setup_measurement_protocol() {
+	measurement_protocol_socket = socket(AF_INET, SOCK_DGRAM, 0);
+	if (measurement_protocol_socket == -1) {
+		throw std::runtime_error("Socket could not be constructed");
+	}
+
+	int yes = 1;
+	if (!setsockopt(measurement_protocol_socket, SOL_SOCKET, SO_BROADCAST, &yes, sizeof(true))) {
+        	throw std::runtime_error("Couldn't set broadcast flag for socket");
+	}
+
+	this->autopilot_passthrough->subscribe_message_async(
+        	MAVLINK_MSG_ID_EXTENDED_SYS_STATE,
+        	std::bind(&Datalink::extended_sys_state_received_callback, this, _1)
+	);
+
+	measurement_protocol_target.sin_addr = { 0xFFFFFFFF };
+	measurement_protocol_target.sin_family = AF_INET;
+	measurement_protocol_target.sin_port = 65432;
+}
+
 void Datalink::uploading_callback(mavsdk::Ftp::Result res, mavsdk::Ftp::ProgressData pd, std::promise<mavsdk::Ftp::Result> *promise) {
 	std::ostringstream resultText;
 	resultText << res;
@@ -1353,6 +1376,36 @@ void Datalink::rc_channels_received_callback(const mavlink_message_t& msg) const
 #undef MAYBE_PUSH_CHANNEL_VALUE
 
         rc_channels_publisher->publish(ros_message);
+}
+
+void Datalink::extended_sys_state_received_callback(const mavlink_message_t& msg) {
+        mavlink_extended_sys_state_t ess;
+        mavlink_msg_extended_sys_state_decode(&msg, &ess);
+
+        const char *buf;
+
+        switch (ess.landed_state) {
+                case MAV_LANDED_STATE_LANDING:
+                        buf = "SYSCMD:o";
+                        break;
+                case MAV_LANDED_STATE_ON_GROUND:
+                        buf = "z";
+                        break;
+                case MAV_LANDED_STATE_TAKEOFF:
+                	buf = "m";
+                	break;
+                default:
+                        return;
+        }
+
+        sendto(
+                measurement_protocol_socket,
+                buf,
+                strlen(buf),
+                0,
+                (struct sockaddr*) &measurement_protocol_target,
+                sizeof(measurement_protocol_target)
+        );
 }
 
 template<typename T>

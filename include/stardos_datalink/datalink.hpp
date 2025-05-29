@@ -10,6 +10,7 @@
 #include <mavsdk/mavlink/common/common.h>
 #include <mavsdk/plugins/mavlink_passthrough/mavlink_passthrough.h>
 #include <mavsdk/plugins/ftp/ftp.h>
+#include <mavsdk/plugins/ftp_server/ftp_server.h>
 
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
@@ -51,21 +52,25 @@ public:
 
 private:
 	std::unique_ptr<Json::StreamWriter> writer;
-        /* ************************ *
-         * VARIABLE ZONE            *
-         * There are a lot of these *
-         * ************************ */
+	/* ************************ *
+	 * VARIABLE ZONE            *
+	 * There are a lot of these *
+	 * ************************ */
 
-        const Json::Value config;
+	const Json::Value config;
 
-        // Instance of MAVSDK -- this models the connection
-  	mavsdk::Mavsdk dc;
-        // Reference to autopilot system
+	// Instance of MAVSDK -- this models the connection
+	mavsdk::Mavsdk dc;
+	// Reference to autopilot system
 	std::shared_ptr<mavsdk::System> autopilot;
-        // Reference to MAVLink system to send telemetry to
+	// Reference to MAVLink system to send telemetry to
 	std::shared_ptr<mavsdk::System> target;
-	// File Transfer Protocol, for transmitting longer messages.
+	// The server component for our mavlink instance.
+	std::shared_ptr<mavsdk::ServerComponent> server_component;
+	// File Transfer Protocol controller, for transmitting longer messages.
 	std::shared_ptr<mavsdk::Ftp> ftp;
+	// The FTP server, which provides the files for transmission.
+	std::shared_ptr<mavsdk::FtpServer> ftp_server;
 
         std::string aircraft;
         std::string payload;

@@ -191,6 +191,11 @@ void Datalink::configure() {
                         true
                 )
         );
+
+	this->server_component = dc.server_component();
+
+	this->ftp_server = std::make_shared<mavsdk::FtpServer>(this->server_component);
+	this->ftp_server->set_root_dir("/opt/stardos/tmp/ftp");
 }
 
 void Datalink::connect() {
@@ -262,7 +267,7 @@ void Datalink::setup_default_control_topics() {
 			10,
 			std::bind(&Datalink::set_config_callback, this, _1)
 		);
-        }
+	}
 }
 
 void Datalink::setup_autopilot_telemetry() {
@@ -435,7 +440,7 @@ MavlinkPassthrough::Result Datalink::send_telemetry(const TelemMessage& msg) {
                 msg.get_data()
         );
 
-        MavlinkPassthrough::Result result = target_passthrough->send_message(message);
+        MavlinkPassthrough::Result result = target_passthrough->queue_message([message] (MavlinkAddress, uint8_t) { return message; });
 
         if (result != MavlinkPassthrough::Result::Success) {
                 std::cout << "command send failed: " << result << "\n";
@@ -457,7 +462,7 @@ void Datalink::check_systems() {
                         target = s;
                         target_passthrough = std::make_shared<MavlinkPassthrough>(target);
 
-                        target_passthrough->subscribe_message_async(
+                        target_passthrough->subscribe_message(
                                         MAVLINK_MSG_ID_LOGGING_DATA,
                                         std::bind(&Datalink::array_received_callback, this, _1));
 
@@ -466,14 +471,12 @@ void Datalink::check_systems() {
                                         1000ms,
                                         std::bind(&Datalink::send_buffered_message, this));
 
-			ftp = std::make_shared<mavsdk::Ftp>(*target);
-
+			ftp = std::make_shared<mavsdk::Ftp>(*target); 
 			ftp->set_target_compid(targetcompid);
 
 			if (-1 == mkdir("/opt/stardos/tmp/ftp", 0644) && errno != EEXIST) {
 				RCLCPP_ERROR(this->get_logger(), "error creating ftp directory: %s", strerror(errno));
 			}
-			ftp->set_root_directory("/opt/stardos/tmp/ftp");
                 }
 
                 if (s->get_system_id() == 1 &&
@@ -493,23 +496,23 @@ void Datalink::check_systems() {
 
                         RCLCPP_INFO(this->get_logger(), "Bridging MAVLink messages");
 
-                        autopilot_passthrough->subscribe_message_async(
+                        autopilot_passthrough->subscribe_message(
                                         MAVLINK_MSG_ID_GPS_RAW_INT,
                                         std::bind(&Datalink::gps_raw_received_callback, this, _1));
 
-                        autopilot_passthrough->subscribe_message_async(
+                        autopilot_passthrough->subscribe_message(
                                         MAVLINK_MSG_ID_GLOBAL_POSITION_INT,
                                         std::bind(&Datalink::global_position_received_callback, this, _1));
 
-                        autopilot_passthrough->subscribe_message_async(
+                        autopilot_passthrough->subscribe_message(
                                         MAVLINK_MSG_ID_ATTITUDE,
                                         std::bind(&Datalink::attitude_received_callback, this, _1));
 
-                        autopilot_passthrough->subscribe_message_async(
+                        autopilot_passthrough->subscribe_message(
                                         MAVLINK_MSG_ID_SYSTEM_TIME,
                                         std::bind(&Datalink::systime_received_callback, this, _1));
 
-                        autopilot_passthrough->subscribe_message_async(
+                        autopilot_passthrough->subscribe_message(
                                         MAVLINK_MSG_ID_RC_CHANNELS,
                                         std::bind(&Datalink::rc_channels_received_callback, this, _1));
                 }
@@ -668,7 +671,7 @@ void Datalink::status_text_callback(Control::SharedPtr ctrl) {
 	if (target_passthrough == nullptr) {
                 RCLCPP_INFO(this->get_logger(), "Tried to send a message before target system was found");
 	} else {
-		target_passthrough->send_message(msg);
+		target_passthrough->queue_message([msg] (MavlinkAddress, uint8_t) { return msg; });
 	}
 }
 

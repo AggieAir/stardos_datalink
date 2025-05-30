@@ -418,35 +418,37 @@ void Datalink::send_buffered_message() {
         }
 }
 
-MavlinkPassthrough::Result Datalink::send_telemetry(const TelemMessage& msg) {
-        RCLCPP_DEBUG(this->get_logger(), "Attempting to send telemetry (size=%hhu)", msg.get_offset());
-        if (!target_passthrough || msg.is_empty()) {
-                return MavlinkPassthrough::Result::Unknown;
-        }
+MavlinkPassthrough::Result Datalink::send_telemetry(const TelemMessage msg) {
+	RCLCPP_DEBUG(this->get_logger(), "Attempting to send telemetry (size=%hhu)", msg.get_offset());
+	if (!target_passthrough || msg.is_empty()) {
+		return MavlinkPassthrough::Result::Unknown;
+	}
 
-        mavlink_message_t message;
+	MavlinkPassthrough::Result result = target_passthrough->queue_message([this, msg] (MavlinkAddress, uint8_t) {
+		mavlink_message_t message;
 
-        if (array_id == UINT16_MAX) array_id = 0;
+		if (array_id == UINT16_MAX) array_id = 0;
 
-        mavlink_msg_logging_data_pack(
-                target_passthrough->get_our_sysid(), // SystemID
-                target_passthrough->get_our_compid(), //My comp ID
-                &message, //Message reference
-                targetsysid,
-                targetcompid,
-                array_id++,
-                msg.get_offset() * 4,
-                0,
-                msg.get_data()
-        );
+		mavlink_msg_logging_data_pack(
+			target_passthrough->get_our_sysid(), // SystemID
+			target_passthrough->get_our_compid(), //My comp ID
+			&message, //Message reference
+			targetsysid,
+			targetcompid,
+			array_id++,
+			msg.get_offset() * 4,
+			0,
+			msg.get_data()
+		);
 
-        MavlinkPassthrough::Result result = target_passthrough->queue_message([message] (MavlinkAddress, uint8_t) { return message; });
+		return message;
+	});
 
-        if (result != MavlinkPassthrough::Result::Success) {
-                std::cout << "command send failed: " << result << "\n";
-        }
+	if (result != MavlinkPassthrough::Result::Success) {
+		std::cout << "command send failed: " << result << "\n";
+	}
 
-        return result;
+	return result;
 }
 
 void Datalink::check_systems() {
@@ -647,31 +649,33 @@ void Datalink::set_config_callback(Control::SharedPtr ctrl) {
 }
 
 void Datalink::status_text_callback(Control::SharedPtr ctrl) {
-	mavlink_statustext_t statustext;
-	statustext.severity = MAV_SEVERITY_INFO;
-	statustext.chunk_seq = 0;
-	statustext.id = statustext_id;
-
-	if (statustext_id == UINT16_MAX) {
-		statustext_id = 0;
-	} else {
-		statustext_id++;
-	}
-
-	strncpy(
-		statustext.text,
-		ctrl->options.c_str(),
-		std::min(50ul, strlen(ctrl->options.c_str()))
-       	);
-
-	mavlink_message_t msg;
-
-	mavlink_msg_statustext_encode(this->sysid, this->compid, &msg, &statustext);
-
 	if (target_passthrough == nullptr) {
-                RCLCPP_INFO(this->get_logger(), "Tried to send a message before target system was found");
+		RCLCPP_INFO(this->get_logger(), "Tried to send a message before target system was found");
 	} else {
-		target_passthrough->queue_message([msg] (MavlinkAddress, uint8_t) { return msg; });
+		target_passthrough->queue_message([this, ctrl] (MavlinkAddress addr, uint8_t channel) {
+			mavlink_statustext_t statustext;
+			statustext.severity = MAV_SEVERITY_INFO;
+			statustext.chunk_seq = 0;
+			statustext.id = statustext_id;
+
+			if (statustext_id == UINT16_MAX) {
+				statustext_id = 0;
+			} else {
+				statustext_id++;
+			}
+
+			strncpy(
+				statustext.text,
+				ctrl->options.c_str(),
+				std::min(50ul, strlen(ctrl->options.c_str()))
+			);
+
+			mavlink_message_t msg;
+
+			mavlink_msg_statustext_encode_chan(addr.system_id, addr.component_id, channel, &msg, &statustext);
+
+			return msg;
+		});
 	}
 }
 

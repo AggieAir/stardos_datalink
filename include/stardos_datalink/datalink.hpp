@@ -202,7 +202,7 @@ private:
         // Send a telemetry packet
 	inline void send_buffered_message();
         // Send a telemetry packet
-        mavsdk::MavlinkPassthrough::Result send_telemetry(const floattelem::Message &msg);
+        mavsdk::MavlinkPassthrough::Result send_telemetry(const floattelem::Message msg);
         // Check to see if there is another system; connect if so
         void check_systems();
         // Handle a message request message

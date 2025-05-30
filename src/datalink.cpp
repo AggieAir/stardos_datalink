@@ -424,14 +424,15 @@ MavlinkPassthrough::Result Datalink::send_telemetry(const TelemMessage msg) {
 		return MavlinkPassthrough::Result::Unknown;
 	}
 
-	MavlinkPassthrough::Result result = target_passthrough->queue_message([this, msg] (MavlinkAddress, uint8_t) {
+	MavlinkPassthrough::Result result = target_passthrough->queue_message([this, msg] (MavlinkAddress addr, uint8_t chan) {
 		mavlink_message_t message;
 
 		if (array_id == UINT16_MAX) array_id = 0;
 
-		mavlink_msg_logging_data_pack(
-			target_passthrough->get_our_sysid(), // SystemID
-			target_passthrough->get_our_compid(), //My comp ID
+		mavlink_msg_logging_data_pack_chan(
+			addr.system_id,
+			addr.component_id,
+			chan,
 			&message, //Message reference
 			targetsysid,
 			targetcompid,

@@ -217,8 +217,8 @@ void Datalink::connect() {
 
 void Datalink::setup_default_heartbeat_topics() {
         std::string copilot_path("/"), payload_path("/");
-        copilot_path = copilot_path + '/' + aircraft + '/' + "copilot" + '/' + "heartbeat";
-        payload_path = payload_path + '/' + aircraft + '/' + payload + '/' + "heartbeat";
+        copilot_path = copilot_path + aircraft + '/' + "copilot" + '/' + "heartbeat";
+        payload_path = payload_path + aircraft + '/' + payload + '/' + "heartbeat";
         std::vector<std::string> topics{copilot_path, payload_path};
 
         if (config["publish_default_topics"].asBool()) {
@@ -297,7 +297,7 @@ void Datalink::setup_starcommand() { //const std::string& downlink_topic, const 
 
 void Datalink::setup_temperatures() {
         std::string temperature_path("/");
-        temperature_path = temperature_path + '/' + aircraft + '/' + "temperature_probes";
+        temperature_path = temperature_path + aircraft + '/' + "temperature_probes";
 
         if (config["listen_for_temperature"].asBool()) {
 		RCLCPP_INFO(this->get_logger(), "Creating Temperature Subscribers");
@@ -356,8 +356,8 @@ void Datalink::load_system_statuses() {
         //         }
         // }
         
-        std::string payload_path = std::string("/") + '/' + aircraft + '/' + payload + '/' + "status";
-        std::string copilot_path = std::string("/") + '/' + aircraft + '/' + "copilot" + '/' + "status";
+        std::string payload_path = std::string("/") + aircraft + '/' + payload + '/' + "status";
+        std::string copilot_path = std::string("/") + aircraft + '/' + "copilot" + '/' + "status";
 
         RCLCPP_INFO(
                 this->get_logger(),

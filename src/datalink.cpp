@@ -61,6 +61,28 @@ Datalink::Datalink(
         dc{mavsdk::Mavsdk{mavsdk::Mavsdk::Configuration{ComponentType::Custom}}},
         buffered_message{TelemMessage()}
 {
+	mavsdk::log::subscribe([this](mavsdk::log::Level level,
+		const std::string& message,
+		const std::string& file,
+		int line
+	) {
+		switch (level) {
+		case mavsdk::log::Level::Debug:
+			RCLCPP_DEBUG(this->get_logger(), "(%s:%d) %s", file.c_str(), line, message.c_str());
+			break;
+		case mavsdk::log::Level::Info:
+			RCLCPP_INFO(this->get_logger(), "(%s:%d) %s", file.c_str(), line, message.c_str());
+			break;
+		case mavsdk::log::Level::Warn:
+			RCLCPP_WARN(this->get_logger(), "(%s:%d) %s", file.c_str(), line, message.c_str());
+			break;
+		case mavsdk::log::Level::Err:
+			RCLCPP_ERROR(this->get_logger(), "(%s:%d) %s", file.c_str(), line, message.c_str());
+			break;
+		}
+		return true;
+	});
+
 	Json::StreamWriterBuilder b;
 	b.settings_["indentation"] = "";
 	writer = std::unique_ptr<Json::StreamWriter>(b.newStreamWriter());
@@ -192,7 +214,11 @@ void Datalink::configure() {
                 )
         );
 
-	this->server_component = dc.server_component();
+	this->server_component = dc.server_component_by_id(this->compid);
+	RCLCPP_INFO(this->get_logger(), "Setting up server and component");
+	if (this->server_component == nullptr) {
+		RCLCPP_ERROR(this->get_logger(), "Could not create server component!");
+	}
 
 	this->ftp_server = std::make_shared<mavsdk::FtpServer>(this->server_component);
 	this->ftp_server->set_root_dir("/opt/stardos/tmp/ftp");

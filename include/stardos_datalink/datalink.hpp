@@ -162,6 +162,8 @@ private:
         rclcpp::Publisher<StarCommandDownlink>::SharedPtr starcommand_publisher;
         rclcpp::Subscription<StarCommandUplink>::SharedPtr starcommand_subscription;
 
+        rclcpp::Publisher<Control>::SharedPtr mission_command_publisher;
+
         rclcpp::Publisher<TemperatureProbes>::SharedPtr temperature_publisher;
         rclcpp::Subscription<TemperatureProbes>::SharedPtr temperature_subscription;
 
@@ -188,6 +190,8 @@ private:
         void setup_autopilot_telemetry();
         // Setup starcommand downlink and uplink
         void setup_starcommand();
+        // Setup user command responses
+        void setup_mission_command_listener();
         // Setup temperature sensors
         void setup_temperatures();
         // Load the properties of each system and the status messages they publish
@@ -223,6 +227,7 @@ private:
         void control_callback(Control::SharedPtr msg);
         // Runs every time we get an uplink message
         void uplink_callback(StarCommandUplink::SharedPtr msg);
+        void mission_command_callback(const mavlink_message_t& msg);
         // Runs every time we get a temperature message
         void temperature_callback(TemperatureProbes::SharedPtr msg);
 

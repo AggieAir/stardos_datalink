@@ -290,6 +290,14 @@ void Datalink::setup_starcommand() { //const std::string& downlink_topic, const 
 	}
 }
 
+void Datalink::setup_mission_command_listener() {
+	if (config["user_commands"].asBool()) {
+		target_passthrough->subscribe_message(MAVLINK_MSG_ID_COMMAND_INT, std::bind(&Datalink::mission_command_callback, this, _1));
+
+		this->mission_command_publisher = this->create_publisher<Control>("mission_command", 10);
+	}
+}
+
 void Datalink::setup_temperatures() {
         std::string temperature_path("/");
         temperature_path = temperature_path + '/' + aircraft + '/' + "temperature_probes";
@@ -855,6 +863,27 @@ void Datalink::uplink_callback(StarCommandUplink::SharedPtr msg) {
                         std::shared_ptr<Control>(&ctrl)
                 );
         }
+}
+
+void Datalink::mission_command_callback(const mavlink_message_t& msg) {
+	mavlink_command_int_t cmd;
+	mavlink_msg_command_int_decode(&msg, &cmd);
+
+	uint16_t cid = cmd.command;
+
+	if (cid == MAV_CMD_USER_1) {
+
+		std::ostringstream ss;
+
+		ss << cmd.x << ","
+			<< cmd.y << ","
+			<< cmd.z;
+
+		Control ctl;
+		ctl.options = ss.str();
+
+		this->mission_command_publisher->publish(ctl);
+	}
 }
 
 void Datalink::temperature_callback(TemperatureProbes::SharedPtr msg) {

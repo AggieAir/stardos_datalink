@@ -278,7 +278,7 @@ void Datalink::setup_autopilot_telemetry() {
 }
 
 void Datalink::setup_starcommand() { //const std::string& downlink_topic, const std::string& uplink_topic) {
-	if (config["starcommand"].asBool()) {
+	if (config["starcommand"].asBool() || config["starcommand_local"].asBool()) {
 		starcommand_publisher = this->create_publisher<StarCommandDownlink>(
 			"/payload_telemetry_downlink", 10);
 		starcommand_subscription = this->create_subscription<StarCommandUplink>(
@@ -571,6 +571,29 @@ void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
                 buffered_message.reset();
                 buffered_message.push_heartbeat_message(msg, id);
         }
+
+	if (!config["starcommand_local"].asBool()) return;
+
+	StarCommandDownlink down;
+
+	Json::Value v(Json::objectValue);
+
+	v["state"]        = Json::Value(msg->state);
+	v["requests"]     = Json::Value(msg->requests);
+	v["failures"]     = Json::Value(msg->failures);
+	v["errors"]       = Json::Value(msg->errors);
+	v["performance"]  = Json::Value(msg->performance);
+	v["queue_length"] = Json::Value(msg->queue_length);
+	copy_to_json_array(msg->data, v["data"]);
+
+	std::ostringstream json_out;
+	writer->write(v, &json_out);
+
+	down.type = "node";
+	down.payload = json_out.str();
+	down.origin = heartbeat_publishers[id]->get_topic_name();
+
+	starcommand_publisher->publish(down);
 }
 
 void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
@@ -591,6 +614,23 @@ void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
         tmsg.push_control_message(ctrl->options, id);
 
         send_telemetry(tmsg);
+
+	if (!config["starcommand_local"].asBool()) return;
+
+	StarCommandDownlink down;
+
+	Json::Value v(Json::objectValue);
+
+	v["options"] = Json::Value(ctrl->options);
+
+	std::ostringstream json_out;
+	writer->write(v, &json_out);
+
+	down.type = "control";
+	down.payload = json_out.str();
+	down.origin = signal_publishers[id]->get_topic_name();
+
+	starcommand_publisher->publish(down);
 }
 
 void Datalink::set_config_callback(Control::SharedPtr ctrl) {
@@ -731,6 +771,28 @@ void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
         tmsg.push_system_status_message(&status, id);
 
         this->send_telemetry(tmsg);
+
+	if (!config["starcommand_local"].asBool()) return;
+
+	StarCommandDownlink down;
+
+	Json::Value v(Json::objectValue);
+
+	copy_to_json_array(msg->cpu_usage, v["cpu_usage"]);
+	copy_to_json_array(msg->disks, v["disks"]);
+	copy_to_json_array(msg->mounts, v["mounts"]);
+	copy_to_json_array(msg->memory, v["memory"]);
+	copy_to_json_array(msg->swap, v["swap"]);
+	v["uptime"] = msg->uptime;
+	v["cpu_count"] = msg->cpu_count;
+
+	std::ostringstream ss;
+	writer->write(v, &ss);
+	down.type = "system";
+	down.payload = ss.str();
+	down.origin = system_status_publishers[id]->get_topic_name();
+
+	starcommand_publisher->publish(down);
 }
 
 void Datalink::setup_floattelem() {
@@ -1059,7 +1121,7 @@ void Datalink::array_received_callback(const mavlink_message_t& msg) {
                         std::ostringstream json_out;
 			writer->write(v, &json_out);
 
-                        down.type = "node";
+                        down.type = "control";
                         down.payload = json_out.str();
                         down.origin = signal_publishers[head.topic_id]->get_topic_name();
 

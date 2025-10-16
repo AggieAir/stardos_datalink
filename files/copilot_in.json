@@ -12,6 +12,7 @@
                 "listen_for_temperature": true,
                 "detect_environment": true,
                 "extra_config_directory": "/opt/stardos/workspace/src/stardos_datalink/files",
-                "starcommand": false
+                "starcommand": false,
+                "starcommand_local": false
         }
 }

@@ -239,6 +239,12 @@ void Datalink::connect() {
 	);
 
         dc.add_any_connection(urlval.asString());
+
+	RCLCPP_DEBUG(this->get_logger(), "setting up buffered message sending timer");
+	send_telemetry_timer = this->create_wall_timer(
+		1000ms,
+		std::bind(&Datalink::send_buffered_message, this)
+	);
 }
 
 void Datalink::setup_default_heartbeat_topics() {
@@ -311,6 +317,7 @@ void Datalink::setup_autopilot_telemetry() {
 
 void Datalink::setup_starcommand() { //const std::string& downlink_topic, const std::string& uplink_topic) {
 	if (config["starcommand"].asBool() || config["starcommand_local"].asBool()) {
+		RCLCPP_INFO(this->get_logger(), "Setting up starcommand ROS bridges");
 		starcommand_publisher = this->create_publisher<StarCommandDownlink>(
 			"/payload_telemetry_downlink", 10);
 		starcommand_subscription = this->create_subscription<StarCommandUplink>(
@@ -437,7 +444,14 @@ void Datalink::load_mountpoints() {
 }
 
 void Datalink::send_buffered_message() {
-        RCLCPP_DEBUG(this->get_logger(), "Trying to send buffered message");
+        RCLCPP_INFO(this->get_logger(), "Trying to send buffered message");
+
+	if (target_passthrough == nullptr) {
+		RCLCPP_ERROR(this->get_logger(), "Tried to send a message before target system was found.");
+		buffered_message.reset();
+		return;
+	}
+
         if (send_telemetry(buffered_message) == MavlinkPassthrough::Result::Success) {
                 RCLCPP_INFO(this->get_logger(), "Resetting message buffer");
                 buffered_message.reset();
@@ -494,11 +508,6 @@ void Datalink::check_systems() {
                         target_passthrough->subscribe_message(
                                         MAVLINK_MSG_ID_LOGGING_DATA,
                                         std::bind(&Datalink::array_received_callback, this, _1));
-
-                        RCLCPP_DEBUG(this->get_logger(), "setting up buffered message sending timer");
-                        send_telemetry_timer = this->create_wall_timer(
-                                        1000ms,
-                                        std::bind(&Datalink::send_buffered_message, this));
 
 			ftp = std::make_shared<mavsdk::Ftp>(*target); 
 			ftp->set_target_compid(targetcompid);
@@ -584,11 +593,6 @@ void Datalink::handle_message_request(uint8_t message_id, uint8_t topic_id) {
 }
 
 void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
-        if (target_passthrough == nullptr) {
-                RCLCPP_INFO(this->get_logger(), "Tried to send a message before target system was found");
-                return;
-        }
-
         RCLCPP_INFO(this->get_logger(), "Queueing heartbeat message (offset=%d)", buffered_message.get_offset());
 
         if (!buffered_message.push_heartbeat_message(msg, id)) {
@@ -616,17 +620,12 @@ void Datalink::heartbeat_callback(int id, NodeHeartbeat::SharedPtr msg) {
 
 	down.type = "node";
 	down.payload = json_out.str();
-	down.origin = heartbeat_publishers[id]->get_topic_name();
+	down.origin = heartbeat_subscriptions[id]->get_topic_name();
 
 	starcommand_publisher->publish(down);
 }
 
 void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
-        if (target_passthrough == nullptr) {
-                RCLCPP_INFO(this->get_logger(), "Tried to send a control signal before target system was found");
-                return;
-        }
-
         if (ctrl->options.size() > floattelem::MAX_STRING_LENGTH) {
                 RCLCPP_ERROR(
 			this->get_logger(),
@@ -653,26 +652,13 @@ void Datalink::signal_callback(int id, Control::SharedPtr ctrl) {
 
 	down.type = "control";
 	down.payload = json_out.str();
-	down.origin = signal_publishers[id]->get_topic_name();
+	down.origin = signal_subscriptions[id]->get_topic_name();
 
 	starcommand_publisher->publish(down);
 }
 
 void Datalink::set_config_callback(Control::SharedPtr ctrl) {
-        if (target_passthrough == nullptr) {
-                RCLCPP_INFO(this->get_logger(), "Tried to set config before target system was found");
-                return;
-        }
-
 	RCLCPP_INFO(this->get_logger(), "Setting config over mavlink");
-
-	{
-		std::ofstream fs("/opt/stardos/tmp/ftp/buffered_message.json");
-		fs << ctrl->options;
-		fs.close();
-	}
-
-	RCLCPP_INFO(this->get_logger(), "Wrote to the buffered_message file");
 
 	uploading_thread = std::make_unique<std::thread>([this, ctrl] {
 		RCLCPP_INFO(this->get_logger(), "Running on new thread");
@@ -681,6 +667,15 @@ void Datalink::set_config_callback(Control::SharedPtr ctrl) {
 		auto future = promise.get_future();
 
 		RCLCPP_INFO(this->get_logger(), "Preparing file upload");
+
+		{
+			std::ofstream fs("/opt/stardos/tmp/ftp/buffered_message.json");
+			fs << ctrl->options;
+			fs.close();
+		}
+
+		RCLCPP_INFO(this->get_logger(), "Wrote to the buffered_message file");
+
 
 		ftp->upload_async(
 			"/opt/stardos/tmp/ftp/buffered_message.json",
@@ -717,33 +712,34 @@ void Datalink::set_config_callback(Control::SharedPtr ctrl) {
 
 void Datalink::status_text_callback(Control::SharedPtr ctrl) {
 	if (target_passthrough == nullptr) {
-		RCLCPP_INFO(this->get_logger(), "Tried to send a message before target system was found");
-	} else {
-		target_passthrough->queue_message([this, ctrl] (MavlinkAddress addr, uint8_t channel) {
-			mavlink_statustext_t statustext;
-			statustext.severity = MAV_SEVERITY_INFO;
-			statustext.chunk_seq = 0;
-			statustext.id = statustext_id;
-
-			if (statustext_id == UINT16_MAX) {
-				statustext_id = 0;
-			} else {
-				statustext_id++;
-			}
-
-			strncpy(
-				statustext.text,
-				ctrl->options.c_str(),
-				std::min(50ul, strlen(ctrl->options.c_str()))
-			);
-
-			mavlink_message_t msg;
-
-			mavlink_msg_statustext_encode_chan(addr.system_id, addr.component_id, channel, &msg, &statustext);
-
-			return msg;
-		});
+		RCLCPP_ERROR(this->get_logger(), "Tried to send a message before target system was found.");
+		return;
 	}
+
+	target_passthrough->queue_message([this, ctrl] (MavlinkAddress addr, uint8_t channel) {
+		mavlink_statustext_t statustext;
+		statustext.severity = MAV_SEVERITY_INFO;
+		statustext.chunk_seq = 0;
+		statustext.id = statustext_id;
+
+		if (statustext_id == UINT16_MAX) {
+			statustext_id = 0;
+		} else {
+			statustext_id++;
+		}
+
+		strncpy(
+			statustext.text,
+			ctrl->options.c_str(),
+			std::min(50ul, strlen(ctrl->options.c_str()))
+		);
+
+		mavlink_message_t msg;
+
+		mavlink_msg_statustext_encode_chan(addr.system_id, addr.component_id, channel, &msg, &statustext);
+
+		return msg;
+	});
 }
 
 void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
@@ -817,7 +813,7 @@ void Datalink::system_status_callback(int id, SystemStatus::SharedPtr msg) {
 	writer->write(v, &ss);
 	down.type = "system";
 	down.payload = ss.str();
-	down.origin = system_status_publishers[id]->get_topic_name();
+	down.origin = system_status_subscriptions[id]->get_topic_name();
 
 	starcommand_publisher->publish(down);
 }

@@ -290,8 +290,8 @@ void Datalink::setup_starcommand() { //const std::string& downlink_topic, const 
 }
 
 void Datalink::setup_mission_command_listener() {
-	if (config["user_commands"].asBool()) {
-		target_passthrough->subscribe_message(MAVLINK_MSG_ID_COMMAND_INT, std::bind(&Datalink::mission_command_callback, this, _1));
+	if (config["mission_commands"].asBool()) {
+		target_passthrough->subscribe_message_async(MAVLINK_MSG_ID_COMMAND_INT, std::bind(&Datalink::mission_command_callback, this, _1));
 
 		this->mission_command_publisher = this->create_publisher<Control>("mission_command", 10);
 	}

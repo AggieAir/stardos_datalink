@@ -486,11 +486,6 @@ link libraries, for instance, made things fail. Just `mavsdk` is sufficient.
 Because computers are dumb, your setup may not work the way mine does. If so,
 try adding these additional flags and see how it goes.
 
-## Questions or Comments
-
-I am not qualified to give high-quality help, but feel free to reach out to me
-on slack (I'm Richard Snider btw) if you need help with this garbage.
-
 [ros2_params]: https://docs.ros.org/en/foxy/Tutorials/Parameters/Understanding-ROS2-Parameters.html
 [ros2_rebinding]: https://docs.ros.org/en/foxy/How-To-Guides/Node-arguments.html#name-remapping
 [install_mavlink]: https://github.com/AggieAir/AggieCap3/blob/master/install_mavlink.sh

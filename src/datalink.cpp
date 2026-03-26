@@ -1323,6 +1323,10 @@ void Datalink::global_position_received_callback(const mavlink_message_t& msg) c
 }
 
 void Datalink::attitude_received_callback(const mavlink_message_t& msg) const {
+        if (msg.sysid != SYS_ID_PAYLOAD) {
+                return;
+        }
+
         mavlink_attitude_t *attitude = new mavlink_attitude_t();
         mavlink_msg_attitude_decode(&msg, attitude);
 

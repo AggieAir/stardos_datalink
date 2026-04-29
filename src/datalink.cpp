@@ -231,14 +231,32 @@ void Datalink::connect() {
                 RCLCPP_ERROR(this->get_logger(), "URL must be a string");
                 throw std::exception();
         }
+        std::string url = urlval.asString();
+
+	if (url.substr(0, 9) == "mavp2p://") {
+		RCLCPP_INFO(this->get_logger(), "url[9..] = %s", url.substr(9).c_str());
+		std::string mavp2p_url = url.substr(9);
+		uint16_t port = central_config_system.get("proxy_port", 14590).asInt();
+		int pid = fork();
+		if (pid == 0) {
+			execlp(
+				"mavp2p",
+				(std::string("udpc:127.0.0.1:") + std::to_string(port)).c_str(),
+				mavp2p_url.c_str(),
+				(char*) NULL
+			);
+		}
+
+		url = std::string("udpin://127.0.0.1:") + std::to_string(port);
+	}
 
 	RCLCPP_INFO(
 		this->get_logger(),
 		"Connecting to MAVLink with URL: '%s'",
-		urlval.asCString()
+		url.c_str()
 	);
 
-        dc.add_any_connection(urlval.asString());
+        dc.add_any_connection(url);
 }
 
 void Datalink::setup_default_heartbeat_topics() {

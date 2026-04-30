@@ -234,12 +234,12 @@ void Datalink::connect() {
         std::string url = urlval.asString();
 
 	if (url.substr(0, 9) == "mavp2p://") {
-		RCLCPP_INFO(this->get_logger(), "url[9..] = %s", url.substr(9).c_str());
 		std::string mavp2p_url = url.substr(9);
 		uint16_t port = central_config_system.get("proxy_port", 14590).asInt();
 		int pid = fork();
 		if (pid == 0) {
 			execlp(
+				"mavp2p",
 				"mavp2p",
 				(std::string("udpc:127.0.0.1:") + std::to_string(port)).c_str(),
 				mavp2p_url.c_str(),
